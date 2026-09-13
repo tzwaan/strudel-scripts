@@ -13,7 +13,7 @@
  *
  * djPattern((prog) => {
  *   const kick = s("sbd*4")
- *   const bass = ("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
+ *   const bass = n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
  *     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
  *     .lpf(400).lpenv(2).lpdecay(.1).lpq(3)
  *   return stack(kick, bass)
@@ -73,7 +73,7 @@
  *   const kick = s("sbd*4")
  *     .postgain(prog.kickpg)
  *     .hpf(prog.hpriser.range(0, 500))
- *   const bass = ("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
+ *   const bass = n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
  *     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
  *     .hpf(prog.hpriser.range(0, 2000)).hpq(10)
  *     .lpf(prog.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3)
