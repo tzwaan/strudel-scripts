@@ -111,6 +111,7 @@
  *   hpriser: "0 0 0 0 .. 100".div(100),
  *   kickpg: "100 [100@2 0] 100 100 .. 0".div(100),
  * });
+ * ```
  *
  * We've now created a playthrough that takes 8 cycles to play, and controls
  * a single djPattern at a time.
