@@ -5,9 +5,12 @@ Strudel DJ emulates a "real" DJ by smoothly transitioning between patterns.
 
 Usage:
 
-Start by defining your first `djPattern`:
+First we start the dj, and define our first `djPattern`:
 
 ```js
+// Keep this at the top before all the other dj functions
+$: dj()
+
 djPattern((prog) => {
   const kick = s("sbd*4")
   const bass = ("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
@@ -20,13 +23,6 @@ djPattern((prog) => {
 A `djPattern` is basically a song that the DJ will mix in its repertoire.
 You may have noticed the `prog` argument that is being passed in.
 Remember that, we'll get back to that later.
-
-Let's make sure that the dj is actually playing by adding this line to the
-bottom of your script:
-
-```js
-$: dj()
-```
 
 With only a single `djPattern` specified, it will just keep playing this
 single pattern over and over.
