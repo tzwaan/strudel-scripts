@@ -316,6 +316,9 @@ class DjConfig {
     return this.getFromArrayOrDefault(this.progressions, n, this.defaultProgression)
   }
   getFromArrayOrDefault(a, n, def) {
+    if (n < 0) {
+      return def;
+    }
     const len = a.length;
     if (!len) {
       return def;
