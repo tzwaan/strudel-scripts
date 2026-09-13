@@ -1,3 +1,91 @@
+// prebake global setting defaults
+window.SWAN_SETTINGS = {
+    scale: 'c:major',
+    chord: 'C',
+    swingOffset: 1/3,
+    swingSubdivision: 8,
+}
+
+window.swanSet = function(name, value) {
+    window.SWAN_SETTINGS[name] = value
+}
+window.swanGet = function(name) {
+    return window.SWAN_SETTINGS[name]
+}
+
+window.setScale = (sc) => {
+    swanSet('scale', sc)
+}
+
+Pattern.prototype.sc = function(octave) {
+    let scale = reify(swanGet('scale'))
+    if (octave != null) {
+        octave = reify(octave)
+        return this.scale(scale).add(note(octave.mul(12)))
+    }
+    return this.scale(scale)
+}
+
+window.setChord = (ch) => {
+    swanSet('chord', ch)
+}
+window.setChords = window.setChord
+
+Pattern.prototype.ch = function(anch) {
+    let chrd = reify(swanGet('chord'))
+    console.log(chrd)
+    if (anch != null) {
+        return this.chord(chrd).anchor(anch).voicing()
+    }
+    return this.chord(chrd).voicing()
+}
+
+window.setSwingBy = (offset, subdivision) => {
+    swanSet('swingOffset', offset)
+    swanSet('swingSubdivision', subdivision)
+}
+
+Pattern.prototype.sw = function(multiply) {
+    if (multiply == null) {
+        multiply = 1
+    }
+    let offset = swanGet('swingOffset')
+    let subdivision = swanGet('swingSubdivision')
+    return this.swingBy(offset, reify(subdivision).mul(multiply))
+}
+
+const SIGNALS = {
+    sin: sine,
+    cos: cosine,
+    tri: tri,
+    saw: saw,
+    sqr: square,
+    perlin: perlin,
+    berlin: berlin,
+}
+
+function defaultMinMaxCycles(min, max, cycles) {
+    if (min == undefined) {
+        return [0, 1, 1]
+    }
+    if (max == undefined) {
+        return [0, min, 1]
+    }
+    if (cycles == undefined) {
+        return [min, max, 1]
+    }
+    return [min, max, cycles]
+}
+
+// Create shorthand versions of the signals
+// e.g. tris(x, y, z) == tri.range(x, y).slow(z)
+for (const [name, signal] of Object.entries(SIGNALS)) {
+    window[name + 's'] = (min, max, cycles) => {
+        [min, max, cycles] = defaultMinMaxCycles(min, max, cycles)
+        return signal.range(min, max).slow(cycles)
+    }
+}
+
 // tb303 style filter envelope control between 0 & 1 values for useful range.
 register('acidenv', (x, pat) => pat.lpf(100)
     .lpenv(x * 9).lps(.2).lpd(.12).lpq(2)
@@ -39,16 +127,136 @@ register('rbpf', (x, pat) => {
     return pat.bpf(pure(x).mul(12).pow(4))
 })
 
+register(['lpt', 'lptrack'], (x, pat) => {
+    return pat.fmap(v => {
+        return {...v, cutoff: getFreq(v.note) * x}
+    })
+})
+
+register(['hpt', 'hptrack'], (x, pat) => {
+    return pat.fmap(v => {
+        return {...v, hcutoff: getFreq(v.note) * x}
+    })
+})
+
+register(['bpt', 'bptrack'], (x, pat) => {
+    return pat.fmap(v => {
+        return {...v, bandf: getFreq(v.note) * x}
+    })
+})
+
+window.pers = (x = 1) => cyclesPer.div(getCps()).mul(x)
+
+register(['lpdt', 'lpdtrack'], (x, pat) => {
+    return pat.lpdecay(pers(x))
+})
+
+register(['hpdt', 'hpdtrack'], (x, pat) => {
+    return pat.hpdecay(pers(x))
+})
+
+register(['bpdt', 'bpdtrack'], (x, pat) => {
+    return pat.bpdecay(pers(x))
+})
+
+// Apply random ribbonned indexing
+Pattern.prototype.nrand = function(max, seed, duration) {
+    if (seed == undefined) {
+        duration = 1
+        seed = 0
+    } else if (duration == undefined) {
+        duration = seed
+        seed = 0
+    }
+    return this.n(irand(max).rib(seed, duration))
+}
+
+window.rrun = (start, end, step = 1) => {
+    // fallback if no arguments are given
+    if (start === undefined) {
+        start = 1
+    }
+    // support a single argument like regular `run(n)` with support for negative numbers
+    if (end === undefined) {
+        end = start
+        start = 0
+    }
+    // protect against division by 0
+    step = reify(step).withValue(v => v === 0 ? 0.01 : v)
+    const wholeSteps = reify(end).sub(start).withValue(v => v < 0 ? -v : v)
+    return saw.range(start, end).segment(wholeSteps.div(step))
+}
+
 
 // fade in a pattern over the given number of cycles repeatedly
 register('fadeOut', (nrCycles, pat) => {
-    return pat.postgain(isaw.slow(nrCycles))
+    return pat.mul(postgain(isaw.slow(nrCycles)))
 })
 
 // fade out a pattern over the given number of cycles repeatedly
 register('fadeIn', (nrCycles, pat) => {
-    return pat.postgain(saw.slow(nrCycles))
+    return pat.mul(postgain(saw.slow(nrCycles)))
 })
+
+register('startFrom', (cycle, pat) => {
+    return pat.late(cycle).filterWhen(t => t.gte(cycle))
+})
+
+register('break', (start, end, pat) => {
+    return pat.filterWhen(t => t.lt(start) && t.gte(end))
+})
+
+register('endAt', (cycle, pat) => {
+    return pat.filterWhen(t.lt(cycle))
+})
+
+register('introRibbon', (intro, total, pat) => {
+    return stack(
+        pat.filterWhen(t => t.lt(intro)),
+        pat.rib(intro, total - intro).late(intro).filterWhen(t => t.gte(intro)),
+    )
+})
+
+/* Allows dividing a pattern into 3 sections:
+ *   - intro
+ *   - loop
+ *   - end
+ *
+ * The arguments provided determine the length of each section
+ * The intro section will play once at the start of the pattern.
+ * Then the loop section will play `repeats` number of times.
+ * Then the end section will play once.
+ * Then the pattern stops playing.
+ *
+ * if `repeats` and `end` are ommitted, the loop section will play indefinitely
+ * if only 1 parameter is provided, it will be used as the loop length with no intro or outro, acting like .rib(0, x)
+ */
+Pattern.prototype.composeRibbon = function(intro, loop, repeats, end) {
+    if (intro == null) {
+        throw new Error('introRibbon requires at least 1 argument')
+    }
+    else if (loop == null) {
+        loop = intro
+        intro = 0
+    }
+    if (repeats == null) {
+        return stack(
+            this.filterWhen(t => t.lt(intro)),
+            this.rib(intro, loop).late(intro).filterWhen(t => t.gte(intro)),
+        )
+    }
+    else if (end == null) {
+        end = 0
+    }
+
+    return stack(
+        this.filterWhen(t => t.lt(intro)),
+        this.rib(intro, loop).late(intro).filterWhen(t => t.gte(intro) && t.lt(intro + loop * repeats)),
+        this.rib(intro + loop, end).late(intro + loop*repeats).filterWhen(t => t.gte(intro + loop * repeats) && t.lt(intro + loop * repeats + end)),
+    )
+}
+Pattern.prototype.compRib = Pattern.prototype.composeRibbon
+Pattern.prototype.crib = Pattern.prototype.composeRibbon
 
 // Creates a riser that rises over the given number of cycles
 // and ends up at the given gain at the end of the last cycle.
@@ -296,9 +504,39 @@ register('fill', function (pat) {
 });
 
 
-register('trancegate', (density, seed, length, x) => {
-  return x.struct(rand.lt(density).seg(16).rib(seed, length)).fill().clip(.7)
+register('trancegate', (density, seed, length, pat) => {
+  return pat.struct(rand.lt(density).seg(16).rib(seed, length)).fill().clip(.7)
 })
+
+
+// Scrubs randomly through a collection of samples in a trancegate fashion
+// s("scrubbass").scrubgate(slider(0.748), 0, 2)
+register('scrubgate', (density, seed, length, pat) => {
+    seed = reify(seed)
+    length = reify(length)
+    return pat.scrub(rand.rib(seed, length).trancegate(density, seed, length))
+}, false)
+
+
+window.automate = register('automate', pat => {
+    return new Pattern(state => {
+        const haps = []
+        for (const hap of pat.queryArc(state.span.begin,state.span.end)) {
+            if (Array.isArray(hap.value)) {
+                const start = hap.whole.begin.valueOf()
+                const end = hap.whole.end.valueOf()
+                const a = hap.value[0]
+                const b = hap.value[1]
+                const progress = (state.span.begin - start) / (end - start)
+                haps.push(new Hap(hap.whole, hap.part, a + (b - a) * progress, hap.context))
+            } else {
+                haps.push(hap)
+            }
+        }
+        return haps
+    })
+})
+
 
 
 //tracker style arrangement
