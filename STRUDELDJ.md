@@ -1,5 +1,5 @@
 
-# --- Strudel DJ ---
+# --- Strudel Dough Jockey ---
 
 Strudel DJ emulates a "real" DJ by smoothly transitioning between patterns.
 
@@ -22,9 +22,9 @@ djPattern((prog) => {
 
 A `djPattern` is basically a song that the DJ will mix in its repertoire.
 You may have noticed the `prog` argument that is being passed in.
-Remember that, we'll get back to that later.
+Remember that, we'll come back to that later.
 
-With only a single `djPattern` specified, it will just keep playing this
+With only a single `djPattern` specified, the dj will just keep playing this
 single pattern over and over.
 
 Let's add a second `djPattern`:
@@ -50,19 +50,46 @@ Let's start with:
 - A parameter for a high-pass riser
 - A parameter for the kick postgain
 
-Let's set our progression defaults
-so these parameters are always available to us.
-Parameter values are often useful when they range from 0 to 1 so they
-can be easily transformed using `.range(a, b)`.
-We want our high-pass riser to be off by default, so we set the value to 0.
-We want our kick postgain to be on by default, so we set the value to 1.
-
 ```js
 djSetProgressionDefaults({
   hpriser: "0",
   kickpg: "1",
 })
 ```
+
+We've now specified the default values for our parameters.
+`hpriser` will be off by default and `kickpg` will be on by default.
+
+<details>
+<summary>What kinds of parameter patterns should I use?</summary>
+The parameters themselves can contain any arbitary pattern.
+
+Which kind of pattern you should use depends
+entirely on the usecase of the parameter.
+
+In this case we want to use our parameters to smoothly transition the hpriser
+and kickpg from fully off to fully on and vice-versa.
+The best way to do this is to create a pattern that
+contains numbers between 0 and 1 (you can even use signals like isaw).
+This allows you to use `.range(a, b)` on it later to transform it into
+the desired range.
+
+But you're not restricted to that kind of pattern.
+You can also create patterns that set the `scale` or `trans`, or even
+store musical patterns that can be inserted.
+
+For example:
+```js
+djSetProgressionDefaults({
+  hpriser: "0",
+  kickpg: "1",
+  scale: "c:phrygian",
+  strans: "4",
+  energy: "100",
+  motif: note("f a c e"),
+})
+```
+</details>
 
 Remember the `prog` argument from earlier?
 We now have access to these control parameters through that `prog` argument.
@@ -109,24 +136,25 @@ djPlaythrough(8, {
 });
 ```
 
+<details>
+<summary>
 We've now created a playthrough that takes 8 cycles to play, and controls
 a single djPattern at a time.
+</summary>
 The patterns for the parameters (`hpriser` and `kickpg`) are automatically
 stretched out over the 8 cycle length of the playthrough. So the control
 patterns only have to consist of 1 cycle.
 
-As mentioned before, I like to have my control parameters in
-a range from 0 to 1, so here I define control patterns with values
-from 0 to 100 and then divide the whole thing by 100.
-This allows me to use the `100 .. 0` syntax to create smooth transitions.
+We use the `0 .. 100` pattern syntax to easily create smooth transitions.
+We then divide by 100 to put all the values in the 0 to 1 range that we want
+these control patterns to be.
+</details>
 
 You should now hear the dj use our defined playthrough to play the patterns.
-This is already much better.
-There's now some buildup before switching patterns.
-But we're still not cleanly transitioning between patterns.
+This is already much better. Some buildup between pattern switches.
+But we're still not cleanly transitioning.
 
-Let's fix that by creating our second progression,
-our first transition:
+Let's fix that by creating our first transition:
 
 ```js
 djTransition(8, {
@@ -138,58 +166,93 @@ djTransition(8, {
 })
 ```
 
+<details>
+<summary>
 We've now created a transition that takes 8 cycles to play and provides
 control parameters for 2 patterns.
-The dj will automatically match the djPatterns of the transitions
-to the djPatterns of the playthroughs before and after it.
-The first pattern specified in the transition is the same as the previous
-playthrough. The last pattern specified is the same as the next playthrough.
-Any number of additional patterns can still be specified in between if you
-want to make an interesting transition where another pattern comes in for
-a short time.
-The same is true if you make a playthrough with multiple patterns.
+</summary>
 
-Now our dj is playing one of our patterns in a playthrough, then after 8
-cycles it starts playing the transition from one patter to another.
-Then after another 8 cycles it switches to playing the other pattern in
-a playthrough of 8 cycles, and rinse and repeat.
+The dj will automatically alternate between playthroughs and transitions,
+and will match up the patterns between them.
 
+The first parameter pattern will be matched
+to the last parameter pattern from the previous progression.
+And so the last parameter pattern will then be matched
+to the first parameter pattern for the next pogression.
 
-You can now add as many djPatterns, djPlaythroughs and djTransitions
-as you want, and the dj will keep mixing them up randomly.
+Both playthroughs and transitions can have any number of parameter patterns.
+The dj always uses the first and last to match them up.
+</details>
 
-And don't forget that you can add as many control parameters as you want
-and they don't have to be values from 0 to 1,
-that is just a useful convention.
+Our dj now:
+- Plays a playthrough of one of our patterns for 8 cycles.
+- Plays a transition from one pattern to the other for 8 cycles.
+- Plays a playthrough of the other pattern for 8 cycles.
+- Plays a transition back to the first pattern for 8 cycles.
 
-For example:
-```js
-djSetProgressionDefaults({
-  hpriser: "0",
-  kickpg: "1",
-  scale: "c:phrygian",
-  strans: "0",
-})
-```
+Because we only have 1 playthrough, 1 transition and 2 patterns, this
+pattern will simply repeat because the dj tries to never play the same thing
+twice in a row if it doesn't have to.
+
+As you add more playthroughs, transitions,
+control parameters, and most importantly: patterns,
+the dj will start mixing and matching the different variations together, and
+it won't simply keep repeating the same loop.
 
 
 Notes:
- - The dj keeps a record of all the progressions that are played, so
-   when you create a new pattern, the record makes sure that the right
-   patterns keep playing, because the available number of choices change
-   the random selections that happen.
-   However, this means that if you stop the repl from playing, and then
-   start it again from the beginning, it will create the same mix up to
-   where it was before because the history is still there.
-   You can force it to reset the history by calling:
+- The dj keeps an internal record of all the progressions that it has played
+  up to the current time that is persistent between updates of the code.
+  This ensures that the dj doesn't suddenly switch patterns whenever a new
+  pattern or progression is added while the dj is playing.
 
-   ```js
-   djReset()
-   ```
+  However, this means that if you press stop and then press start
+  from the beginning, the dj still has the internal history that it had before.
+  So it will play the exact same progressions and patterns as it did before
+  (Those progressions and patterns themselves *are* updated to the new version).
 
-   The intended way to use Strudel Dj, like most live coding,
-   is to keep it playing without ever stopping the music.
-   Make sure to comment out `djReset()` after using it, because calling
-   it while the dj is in the middle of a mix may cause it to change suddenly
-   when you rerun the code.
+  You can force the dj to reset its internal history:
+
+  ```js
+  djReset()
+  ```
+
+  When you do this, it will delete the history, and recreate it up to the
+  current point using the current configuration.
+
+  You can simply comment and uncomment this line whenever you stop and play,
+  and just keep it commented out when you never stop the playback.
+
+- When you're working on a pattern or progression, or you're making a new one,
+  it's nice if the dj actually plays that pattern.
+
+  We can make sure of this by specifying that our
+  pattern or progression has priority by giving a second argument:
+
+  ```js
+  // prioritizing a playthrough
+  djPlaythrough(8, true, {
+    // parameters
+  })
+
+  // prioritizing a transition
+  djTransition(8, true, {
+    // parameters
+  }, {
+    // parameters
+  })
+
+  // prioritizing a pattern
+  djPattern(true, (prog) => {
+    // pattern
+  })
+  ```
+
+  The dj will always try to use progressions and patterns
+  that are marked with priority first.
+  Even if that means that it has to play the same pattern or progression
+  multiple times in a row.
+
+
+
 
