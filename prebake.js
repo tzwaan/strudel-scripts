@@ -86,6 +86,13 @@ for (const [name, signal] of Object.entries(SIGNALS)) {
     }
 }
 
+// Immediately log the value of the haps of a pattern at the point
+// where this method is called in the chain.
+register('logValue', (pat) => pat.fmap((v) => {
+    console.log(v);
+    return v;
+}));
+
 // tb303 style filter envelope control between 0 & 1 values for useful range.
 register('acidenv', (x, pat) => pat.lpf(100)
     .lpenv(x * 9).lps(.2).lpd(.12).lpq(2)
