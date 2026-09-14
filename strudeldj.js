@@ -245,34 +245,34 @@ function myRandInts(time, n, max, seed = 0) {
 }
 
 class Progression {
-  constructor(id, isTransition, duration, configPatterns, priority) {
-    if (!Array.isArray(configPatterns)) {
-      configPatterns = [configPatterns];
+  constructor(id, isTransition, duration, parameters, priority) {
+    if (!Array.isArray(parameters)) {
+      parameters = [parameters];
     }
-    if (!configPatterns.length) {
+    if (!parameters.length) {
       DjFail('Must have at least one config pattern');
     }
     this.id = id;
     this.isTransition = isTransition;
     this.duration = duration;
-    this._configPatterns = configPatterns;
+    this._parameters = parameters;
     this.priority = priority;
   }
 
-  get configPatterns() {
-    if (this.__configPatterns === undefined) {
-      this.__configPatterns = this._configPatterns.map((configPattern) => ({
-        ...window.getDjConfig().defaultProgression._configPatterns[0],
+  get parameters() {
+    if (this.__parameters === undefined) {
+      this.__parameters = this._parameters.map((configPattern) => ({
+        ...window.getDjConfig().defaultProgression._parameters[0],
         isTransition: pure(this.isTransition ? 1 : 0),
         isPlaythrough: pure(this.isTransition ? 0 : 1),
         ...configPattern,
       }));
     }
-    return this.__configPatterns;
+    return this.__parameters;
   }
 
   get nrPatterns() {
-    return this._configPatterns.length;
+    return this._parameters.length;
   }
 }
 
@@ -283,8 +283,8 @@ class Block {
     this.timespan = timespan;
     this.progressionId = progressionId;
     this.patternIds = patternIds;
-    if (check && this.progression.configPatterns.length !== this.patternIds.length) {
-      throw new Error('[Block] configPatterns and patternIds must have the same number of entries');
+    if (check && this.progression.parameters.length !== this.patternIds.length) {
+      throw new Error('[Block] parameters and patternIds must have the same number of entries');
     }
   }
 
@@ -321,9 +321,9 @@ class Block {
     }
     const progression = this.progression;
     const patterns = [];
-    const configPatterns = progression.configPatterns;
-    for (let i = 0; i < configPatterns.length; i++) {
-      const config = configPatterns[i];
+    const parameters = progression.parameters;
+    for (let i = 0; i < parameters.length; i++) {
+      const config = parameters[i];
       const lateConfig = {};
       for (const [key, value] of Object.entries(config)) {
         lateConfig[key] = reify(value).slow(this.timespan.duration).late(this.timespan.begin);
@@ -591,7 +591,7 @@ window.djPattern = function(priority, patFunc = undefined) {
     patFunc = priority;
     priority = false;
   }
-  const defaultProgression = window.getDjConfig().defaultProgression.configPatterns[0];
+  const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
   const result = TryDjFail(() => patFunc(defaultProgression));
   if (!isPattern(result)) {
     DjFail('djPattern function does not return a pattern');
@@ -599,9 +599,9 @@ window.djPattern = function(priority, patFunc = undefined) {
   window.getDjConfig().patterns.push(new DjPattern(window.getDjConfig().patterns.length, patFunc, priority));
 }
 
-function checkAgainstDefault(configPatterns) {
-  const defaultProgression = window.getDjConfig().defaultProgression.configPatterns[0];
-  for (const configPattern of configPatterns) {
+function checkAgainstDefault(parameters) {
+  const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
+  for (const configPattern of parameters) {
     for (const [key, value] of Object.entries(configPattern)) {
       if (!(key in defaultProgression)) {
         DjFail('Unknown control parameter `' + key + '`. Did you forget to add it to the dj?');
@@ -610,37 +610,37 @@ function checkAgainstDefault(configPatterns) {
   }
 }
 
-window.djPlaythrough = function(length, ...configPatterns) {
-  if (!Array.isArray(configPatterns)) {
-    configPatterns = [configPatterns];
+window.djPlaythrough = function(length, ...parameters) {
+  if (!Array.isArray(parameters)) {
+    parameters = [parameters];
   }
   let priority = false;
-  if (typeof configPatterns[0] === 'boolean') {
-    priority = configPatterns.shift();
+  if (typeof parameters[0] === 'boolean') {
+    priority = parameters.shift();
   }
-  if (configPatterns.length < 1) {
+  if (parameters.length < 1) {
     DjFail('Playthrough must have at least 1 config pattern');
   }
-  checkAgainstDefault(configPatterns);
+  checkAgainstDefault(parameters);
   window.getDjConfig().progressions.push(
-    new Progression(window.getDjConfig().progressions.length, false, length, configPatterns, priority)
+    new Progression(window.getDjConfig().progressions.length, false, length, parameters, priority)
   );
 }
 
-window.djTransition = function(length, ...configPatterns) {
-  if (!Array.isArray(configPatterns)) {
-    configPatterns = [configPatterns];
+window.djTransition = function(length, ...parameters) {
+  if (!Array.isArray(parameters)) {
+    parameters = [parameters];
   }
   let priority = false;
-  if (typeof configPatterns[0] === 'boolean') {
-    priority = configPatterns.shift();
+  if (typeof parameters[0] === 'boolean') {
+    priority = parameters.shift();
   }
-  if (configPatterns.length < 2) {
+  if (parameters.length < 2) {
     DjFail('Transition must have at least 2 config patterns');
   }
-  checkAgainstDefault(configPatterns);
+  checkAgainstDefault(parameters);
   window.getDjConfig().progressions.push(
-    new Progression(window.getDjConfig().progressions.length, true, length, configPatterns, priority)
+    new Progression(window.getDjConfig().progressions.length, true, length, parameters, priority)
   );
 }
 
