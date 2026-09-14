@@ -11,17 +11,16 @@ First we start the dj, and define our first `djPattern`:
 // Keep this at the top before all the other dj functions
 $: dj()
 
-djPattern((prog) => {
-  const kick = s("sbd*4")
-  const bass = n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
+djPattern(p => stack(
+  s("sbd*4"),
+  n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
-    .lpf(400).lpenv(2).lpdecay(.1).lpq(3)
-  return stack(kick, bass)
-})
+    .lpf(400).lpenv(2).lpdecay(.1).lpq(3),
+))
 ```
 
 A `djPattern` is basically a song that the DJ will mix in its repertoire.
-You may have noticed the `prog` argument that is being passed in.
+You may have noticed the `p` argument that is being passed in.
 Remember that, we'll come back to that later.
 
 With only a single `djPattern` specified, the dj will just keep playing this
@@ -30,13 +29,12 @@ single pattern over and over.
 Let's add a second `djPattern`:
 
 ```js
-djPattern((prog) => {
-  const kick = s("sbd(3,8)")
-  const bass = n("[0 <1 <2 -1>>]*4")
+djPattern(p => stack(
+  s("sbd(3,8)"),
+  n("[0 <1 <2 -1>>]*4")
     .scale("c:phrygian").trans(-12).s("saw")
-    .lpf(1000).lpq(7)
-  return stack(kick, bass)
-})
+    .lpf(1000).lpq(7),
+))
 ```
 
 You'll notice that the dj is now alternating your 2 patterns and playing
@@ -44,14 +42,15 @@ each pattern for 4 cycles.
 It's a start, but it's a bit boring. That's because we haven't defined
 any progressions yet.
 
-First we should decide what kind of controls we want to use on our patterns.
+First we should decide which parameters we want to create for our patterns.
 Don't worry, you can always easily add more later.
 Let's start with:
 - A parameter for a high-pass riser
 - A parameter for the kick postgain
 
+Update the `dj()` call at the top of your script:
 ```js
-djSetProgressionDefaults({
+$: dj({
   hpriser: "0",
   kickpg: "1",
 })
@@ -80,7 +79,7 @@ store musical patterns that can be inserted.
 
 For example:
 ```js
-djSetProgressionDefaults({
+$: dj({
   hpriser: "0",
   kickpg: "1",
   scale: "c:phrygian",
@@ -91,31 +90,29 @@ djSetProgressionDefaults({
 ```
 </details>
 
-Remember the `prog` argument from earlier?
-We now have access to these control parameters through that `prog` argument.
+Remember the `p` argument from earlier?
+We now have access to the parameters through `p`.
 Let's update our djPatterns:
 
 ```js
-djPattern((prog) => {
-  const kick = s("sbd*4")
-    .postgain(prog.kickpg)
-    .hpf(prog.hpriser.range(0, 500))
-  const bass = n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
+djPattern(p => stack(
+  s("sbd*4")
+    .postgain(p.kickpg)
+    .hpf(p.hpriser.range(0, 500)),
+  n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
-    .hpf(prog.hpriser.range(0, 2000)).hpq(10)
-    .lpf(prog.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3)
-  return stack(kick, bass)
-})
+    .hpf(p.hpriser.range(0, 2000)).hpq(10)
+    .lpf(p.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3),
+))
 
-djPattern((prog) => {
-  const kick = s("sbd(3,8)")
-    .postgain(prog.kickpg)
-    .hpf(prog.hpriser.range(0, 200))
-  const bass = n("[0 <1 <2 -1>>]*4").scale("c:phrygian").trans(-12).s("saw")
-    .hpf(prog.hpriser.range(0, 1500)).hpq(10)
-    .lpf(1000).lpq(7)
-  return stack(kick, bass)
-})
+djPattern(p => stack(
+  s("sbd(3,8)")
+    .postgain(p.kickpg)
+    .hpf(p.hpriser.range(0, 200)),
+  n("[0 <1 <2 -1>>]*4").scale("c:phrygian").trans(-12).s("saw")
+    .hpf(p.hpriser.range(0, 1500)).hpq(10)
+    .lpf(1000).lpq(7),
+))
 ```
 
 So far, nothing has changed. The dj is still playing the patterns back and
@@ -133,7 +130,7 @@ Let's start with our first playthrough:
 djPlaythrough(8, {
   hpriser: "0 0 0 0 .. 100".div(100),
   kickpg: "100 [100@2 0] 100 100 .. 0".div(100),
-});
+})
 ```
 
 <details>
@@ -201,28 +198,6 @@ it won't simply keep repeating the same loop.
 
 
 Notes:
-- The dj keeps an internal record of all the progressions that it has played
-  up to the current time that is persistent between updates of the code.
-  This ensures that the dj doesn't suddenly switch patterns whenever a new
-  pattern or progression is added while the dj is playing.
-
-  However, this means that if you press stop and then press start
-  from the beginning, the dj still has the internal history that it had before.
-  So it will play the exact same progressions and patterns as it did before
-  (Those progressions and patterns themselves *are* updated to the new version).
-
-  You can force the dj to reset its internal history:
-
-  ```js
-  djReset()
-  ```
-
-  When you do this, it will delete the history, and recreate it up to the
-  current point using the current configuration.
-
-  You can simply comment and uncomment this line whenever you stop and play,
-  and just keep it commented out when you never stop the playback.
-
 - When you're working on a pattern or progression, or you're making a new one,
   it's nice if the dj actually plays that pattern.
 
@@ -243,7 +218,7 @@ Notes:
   })
 
   // prioritizing a pattern
-  djPattern(true, (prog) => {
+  djPattern(true, p => {
     // pattern
   })
   ```

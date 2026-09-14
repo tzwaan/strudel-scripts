@@ -1,4 +1,5 @@
 /**
+ *
  * # --- Strudel Dough Jockey ---
  *
  * Strudel DJ emulates a "real" DJ by smoothly transitioning between patterns.
@@ -11,17 +12,16 @@
  * // Keep this at the top before all the other dj functions
  * $: dj()
  *
- * djPattern((prog) => {
- *   const kick = s("sbd*4")
- *   const bass = n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
+ * djPattern(p => stack(
+ *   s("sbd*4"),
+ *   n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
  *     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
- *     .lpf(400).lpenv(2).lpdecay(.1).lpq(3)
- *   return stack(kick, bass)
- * })
+ *     .lpf(400).lpenv(2).lpdecay(.1).lpq(3),
+ * ))
  * ```
  *
  * A `djPattern` is basically a song that the DJ will mix in its repertoire.
- * You may have noticed the `prog` argument that is being passed in.
+ * You may have noticed the `p` argument that is being passed in.
  * Remember that, we'll come back to that later.
  *
  * With only a single `djPattern` specified, the dj will just keep playing this
@@ -30,13 +30,12 @@
  * Let's add a second `djPattern`:
  *
  * ```js
- * djPattern((prog) => {
- *   const kick = s("sbd(3,8)")
- *   const bass = n("[0 <1 <2 -1>>]*4")
+ * djPattern(p => stack(
+ *   s("sbd(3,8)"),
+ *   n("[0 <1 <2 -1>>]*4")
  *     .scale("c:phrygian").trans(-12).s("saw")
- *     .lpf(1000).lpq(7)
- *   return stack(kick, bass)
- * })
+ *     .lpf(1000).lpq(7),
+ * ))
  * ```
  *
  * You'll notice that the dj is now alternating your 2 patterns and playing
@@ -44,14 +43,15 @@
  * It's a start, but it's a bit boring. That's because we haven't defined
  * any progressions yet.
  *
- * First we should decide what kind of controls we want to use on our patterns.
+ * First we should decide which parameters we want to create for our patterns.
  * Don't worry, you can always easily add more later.
  * Let's start with:
  * - A parameter for a high-pass riser
  * - A parameter for the kick postgain
  *
+ * Update the `dj()` call at the top of your script:
  * ```js
- * djSetProgressionDefaults({
+ * $: dj({
  *   hpriser: "0",
  *   kickpg: "1",
  * })
@@ -80,7 +80,7 @@
  *
  * For example:
  * ```js
- * djSetProgressionDefaults({
+ * $: dj({
  *   hpriser: "0",
  *   kickpg: "1",
  *   scale: "c:phrygian",
@@ -91,31 +91,29 @@
  * ```
  * </details>
  *
- * Remember the `prog` argument from earlier?
- * We now have access to these control parameters through that `prog` argument.
+ * Remember the `p` argument from earlier?
+ * We now have access to the parameters through `p`.
  * Let's update our djPatterns:
  *
  * ```js
- * djPattern((prog) => {
- *   const kick = s("sbd*4")
- *     .postgain(prog.kickpg)
- *     .hpf(prog.hpriser.range(0, 500))
- *   const bass = n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
+ * djPattern(p => stack(
+ *   s("sbd*4")
+ *     .postgain(p.kickpg)
+ *     .hpf(p.hpriser.range(0, 500)),
+ *   n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
  *     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
- *     .hpf(prog.hpriser.range(0, 2000)).hpq(10)
- *     .lpf(prog.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3)
- *   return stack(kick, bass)
- * })
+ *     .hpf(p.hpriser.range(0, 2000)).hpq(10)
+ *     .lpf(p.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3),
+ * ))
  *
- * djPattern((prog) => {
- *   const kick = s("sbd(3,8)")
- *     .postgain(prog.kickpg)
- *     .hpf(prog.hpriser.range(0, 200))
- *   const bass = n("[0 <1 <2 -1>>]*4").scale("c:phrygian").trans(-12).s("saw")
- *     .hpf(prog.hpriser.range(0, 1500)).hpq(10)
- *     .lpf(1000).lpq(7)
- *   return stack(kick, bass)
- * })
+ * djPattern(p => stack(
+ *   s("sbd(3,8)")
+ *     .postgain(p.kickpg)
+ *     .hpf(p.hpriser.range(0, 200)),
+ *   n("[0 <1 <2 -1>>]*4").scale("c:phrygian").trans(-12).s("saw")
+ *     .hpf(p.hpriser.range(0, 1500)).hpq(10)
+ *     .lpf(1000).lpq(7),
+ * ))
  * ```
  *
  * So far, nothing has changed. The dj is still playing the patterns back and
@@ -133,7 +131,7 @@
  * djPlaythrough(8, {
  *   hpriser: "0 0 0 0 .. 100".div(100),
  *   kickpg: "100 [100@2 0] 100 100 .. 0".div(100),
- * });
+ * })
  * ```
  *
  * <details>
@@ -201,7 +199,7 @@
  *
  *
  * Notes:
- * - When you're working on a pattern or progression, or you're making a new one
+ * - When you're working on a pattern or progression, or you're making a new one,
  *   it's nice if the dj actually plays that pattern.
  *
  *   We can make sure of this by specifying that our
@@ -212,22 +210,26 @@
  *   djPlaythrough(8, true, {
  *     // parameters
  *   })
+ *
  *   // prioritizing a transition
  *   djTransition(8, true, {
  *     // parameters
  *   }, {
  *     // parameters
  *   })
+ *
  *   // prioritizing a pattern
- *   djPattern(true, (prog) => {
+ *   djPattern(true, p => {
  *     // pattern
- *   }
+ *   })
  *   ```
  *
  *   The dj will always try to use progressions and patterns
  *   that are marked with priority first.
  *   Even if that means that it has to play the same pattern or progression
  *   multiple times in a row.
+ *
+ *
  */
 
 
