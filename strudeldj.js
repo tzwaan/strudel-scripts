@@ -1,17 +1,29 @@
 /**
- *
  * # --- Strudel Dough Jockey ---
  *
  * Strudel DJ emulates a "real" DJ by smoothly transitioning between patterns.
  *
- * Usage:
- *
- * First we start the dj, and define our first `djPattern`:
+ * You can include strudel dj in your prebake, you can copy paste it
+ * into your script directly, or you can import the latest version from github:
  *
  * ```js
- * // Keep this at the top before all the other dj functions
- * $: dj()
+ * await import('https://raw.githack.com/tzwaan/strudel-scripts/refs/heads/main/strudeldj.js')
+ * ```
  *
+ * # Tutorial
+ *
+ * First, let's start the dj.
+ *
+ * ```js
+ * // Keep this at the top of the page above all your other dj functions
+ * $: dj()
+ * ```
+ *
+ * Now let's define our first:
+ *
+ * ## DjPattern
+ *
+ * ```js
  * djPattern(p => stack(
  *   s("sbd*4"),
  *   n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
@@ -20,9 +32,8 @@
  * ))
  * ```
  *
- * A `djPattern` is basically a song that the DJ will mix in its repertoire.
- * You may have noticed the `p` argument that is being passed in.
- * Remember that, we'll come back to that later.
+ * A `djPattern` is a "song" that the DJ will mix in its repertoire.
+ * Notice the `p` argument that is being passed in, we'll come back to that later.
  *
  * With only a single `djPattern` specified, the dj will just keep playing this
  * single pattern over and over.
@@ -38,45 +49,57 @@
  * ))
  * ```
  *
- * You'll notice that the dj is now alternating your 2 patterns and playing
- * each pattern for 4 cycles.
- * It's a start, but it's a bit boring. That's because we haven't defined
- * any progressions yet.
+ * The dj will now play your patterns back and forth for 4 cycles each.
  *
- * First we should decide which parameters we want to create for our patterns.
- * Don't worry, you can always easily add more later.
- * Let's start with:
- * - A parameter for a high-pass riser
- * - A parameter for the kick postgain
+ * It's a start, but it's a bit boring.
  *
- * Update the `dj()` call at the top of your script:
+ * To make it more interesting we first have to give the dj some parameters
+ * to control, because like a real dj, it can't do anything if it doesn't
+ * have a bunch of nobs to turn.
+ *
+ * Let's start by defining:
+ * - A parameter for a high-pass riser (between 0 and 1)
+ * - A parameter for the kick postgain (between 0 and 1)
+ *
+ * Update the `dj()` call at the top of your script
+ * to add the parameters with their defaults:
+ *
  * ```js
+ * // Keep this at the top before all the other dj functions
  * $: dj({
- *   hpriser: "0",
- *   kickpg: "1",
+ *   hpriser: "0", // range: 0 to 1
+ *   kickpg: "1",  // range: 0 to 1
  * })
  * ```
  *
- * We've now specified the default values for our parameters.
- * `hpriser` will be off by default and `kickpg` will be on by default.
- *
  * <details>
- * <summary>What kinds of parameter patterns should I use?</summary>
- * The parameters themselves can contain any arbitary pattern.
+ * <summary>*What parameters should I use?*</summary>
+ * ----------------------------
  *
- * Which kind of pattern you should use depends
- * entirely on the usecase of the parameter.
+ * ## Parameters
  *
- * In this case we want to use our parameters to smoothly transition the hpriser
- * and kickpg from fully off to fully on and vice-versa.
- * The best way to do this is to create a pattern that
- * contains numbers between 0 and 1 (you can even use signals like isaw).
- * This allows you to use `.range(a, b)` on it later to transform it into
- * the desired range.
+ * You can add any number of arbitrary parameters, and each of the parameters
+ * can be assigned an arbitrary pattern. So ultimately it entirely depends on
+ * how *you* want to use them.
  *
- * But you're not restricted to that kind of pattern.
- * You can also create patterns that set the `scale` or `trans`, or even
- * store musical patterns that can be inserted.
+ * However, it's good to restrict yourself to easily workable conventions
+ * when starting out.
+ *
+ * For example, in this case we want the dj to smoothly modulate the `hpriser`
+ * and `kickpg` parameters during a transition from one pattern to the next.
+ *
+ * Because the dj will be mixing a bunch of different patterns, we don't really
+ * want the dj to know about the details of the patterns. The dj just knows about
+ * the parameters. So instead of setting the `hpriser` to exact high-pass-filter
+ * frequency values, we set it to a number between 0 and 1, where 0 means "off"
+ * and 1 means "on".
+ *
+ * This is a convention that is already used in strudel for signals like
+ * `saw`, `sine`, `rand` or `perlin`, and it allows each pattern to transform
+ * it into the correct values by calling `p.hpriser.range(a, b)`.
+ *
+ * Of course this is just a convention, and you're completely free to set the
+ * parameters to any values you want.
  *
  * For example:
  * ```js
@@ -87,45 +110,66 @@
  *   strans: "4",
  *   energy: "100",
  *   motif: note("f a c e"),
+ *   scrumtush: "occuboinkal",
  * })
  * ```
+ *
+ * ----------------------------
  * </details>
  *
  * Remember the `p` argument from earlier?
- * We now have access to the parameters through `p`.
- * Let's update our djPatterns:
+ * The parameters we have defined are now accessible through `p`.
+ * We can update the patterns so they react to the nobs being turned:
  *
  * ```js
  * djPattern(p => stack(
  *   s("sbd*4")
- *     .postgain(p.kickpg)
- *     .hpf(p.hpriser.range(0, 500)),
+ *     .postgain(p.kickpg) // We use the kickpg to alter the postgain on the kick
+ *     .hpf(p.hpriser.range(0, 500)), // We use the hpriser to control the high pass filter on the kick
  *   n("0 0 0 _  0 0 _ 0  0 _ 0 0  _ 0 0 0")
  *     .scale("c:phrygian").s("saw").clip(.8).trans(-12)
- *     .hpf(p.hpriser.range(0, 2000)).hpq(10)
- *     .lpf(p.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3),
+ *     .hpf(p.hpriser.range(0, 2000)).hpq(10) // We use the hpriser to control the high pass filter on the bass
+ *     .lpf(p.hpriser.range(300, 1000)).lpenv(2).lpdecay(.1).lpq(3), // And we use it on the low pass filter too, just for fun
  * ))
  *
  * djPattern(p => stack(
  *   s("sbd(3,8)")
- *     .postgain(p.kickpg)
- *     .hpf(p.hpriser.range(0, 200)),
+ *     .postgain(p.kickpg) // We use the kickpg to alter the postgain on the kick
+ *     .hpf(p.hpriser.range(0, 200)), // We use the hpriser to control the high pass filter on the kick
  *   n("[0 <1 <2 -1>>]*4").scale("c:phrygian").trans(-12).s("saw")
- *     .hpf(p.hpriser.range(0, 1500)).hpq(10)
+ *     .hpf(p.hpriser.range(0, 1500)).hpq(10) // We use the hpriser to control the high pass filter on the bass
  *     .lpf(1000).lpq(7),
  * ))
  * ```
  *
- * So far, nothing has changed. The dj is still playing the patterns back and
- * forth, and the control parameters are only set to their default values.
+ * We've set up the control parameters, but without the nobs being turned
+ * the music still sounds the same
+ * (all parameters are currently resting at their default values).
  *
- * Time to add a progression.
- * There are 2 types of progressions:
- * - A playthrough: This represent the automation of 1 or more djPatterns
- *   that basically represent a song
- * - A transition: This represents the transition between two playthroughs
+ * We solve this by adding:
  *
- * Let's start with our first playthrough:
+ * ## Progressions
+ *
+ * A progression is basically a block in the dj's live set, where it plays
+ * one or multiple patterns.
+ * The dj always plays just 1 progression at a time, and when the current
+ * progression is finished, it'll pick a new progression to continue.
+ *
+ * Each progression has a specified length in cycles, and can specify
+ * the control parameter patterns for any number of patterns.
+ *
+ * There are 2 types of progressions: playthroughs and transitions.
+ * - Playthrough: The playback automation of single "song". Usually, a playthrough
+ *   only controls 1 pattern.
+ * - Transition: The automation that stitches together 2 playthroughs.
+ *   Always has at least 2 patterns:
+ *   - First the pattern that was playing in the last playthrough
+ *   - Last the pattern that will play on the next playthrough
+ *
+ *
+ * Let's add a:
+ *
+ * ### Playthrough
  *
  * ```js
  * djPlaythrough(8, {
@@ -134,25 +178,50 @@
  * })
  * ```
  *
- * <details>
- * <summary>
- * We've now created a playthrough that takes 8 cycles to play, and controls
- * a single djPattern at a time.
- * </summary>
- * The patterns for the parameters (`hpriser` and `kickpg`) are automatically
- * stretched out over the 8 cycle length of the playthrough. So the control
- * patterns only have to consist of 1 cycle.
+ * This playthrough plays for 8 cycles and controls a single pattern.
  *
- * We use the `0 .. 100` pattern syntax to easily create smooth transitions.
- * We then divide by 100 to put all the values in the 0 to 1 range that we want
- * these control patterns to be.
+ * The patterns for the control parameters are automatically slowed down by the
+ * dj so they fit the 8 cycle duration of the progression.
+ *
+ * <details>
+ * <summary>A few tips for writing progressions</summary>
+ * --------------------
+ *
+ * As previously mentioned, control parameters with the range 0 to 1
+ * are very useful.
+ *
+ * The patterns can be made in multiple ways:
+ * - Just manually typing numbers.
+ *   `"[0 .1 .2 .3 .4 .5 .6 .7 .8 .9] [1 .9 .8 .7 .6 .5] [.5 .6 .7 .8 .8 .7 .6 .5] [.5 .6 .7 .8 .9 1]"`
+ *   This is cumbersome, and not really smooth either.
+ *
+ * - Make a sequence of different signals.
+ *   `seq(saw, saw.range(1, .5), tri.range(.5, .8), saw.range(.5, 1))`
+ *   Signals are already continuous, so we can string
+ *   them together to get smooth transitions.
+ *
+ * - Use the range pattern notation to generate a range of numbers, and then
+ *   divide them afterwards to get them in the 0 to 1 range.
+ *   `"0 .. 100 100 .. 50 [50 .. 80 80 .. 50] 50 .. 100".div(100)`
+ *   This is the best of both worlds in my opinion. The ranges are not quite
+ *   continuous, but the resolution is high enough for smooth transitions.
+ *
+ *
+ * > **Note**
+ * > I have an idea for a function that would make it much easier to write
+ * > smooth progressions. Likely coming soon...
+ *
+ *
+ * --------------------
  * </details>
  *
  * You should now hear the dj use our defined playthrough to play the patterns.
  * This is already much better. Some buildup between pattern switches.
  * But we're still not cleanly transitioning.
  *
- * Let's fix that by creating our first transition:
+ * Let's fix that by creating our first:
+ *
+ * ### Transition
  *
  * ```js
  * djTransition(8, {
@@ -166,20 +235,14 @@
  *
  * <details>
  * <summary>
- * We've now created a transition that takes 8 cycles to play and provides
- * control parameters for 2 patterns.
+ * This transition is 8 cycles long and controls 2 patterns.
  * </summary>
+ * > As mentioned before, the first and last patterns in the transition will
+ * > be the same as the patterns from the previous and next progressions.
  *
- * The dj will automatically alternate between playthroughs and transitions,
- * and will match up the patterns between them.
- *
- * The first parameter pattern will be matched
- * to the last parameter pattern from the previous progression.
- * And so the last parameter pattern will then be matched
- * to the first parameter pattern for the next pogression.
- *
- * Both playthroughs and transitions can have any number of parameter patterns.
- * The dj always uses the first and last to match them up.
+ * > So with 2 patterns, we want the first pattern to start loud, and then
+ * > fade out to the end, and the second pattern to start soft, and then
+ * > fade in to the end.
  * </details>
  *
  * Our dj now:
@@ -192,43 +255,89 @@
  * pattern will simply repeat because the dj tries to never play the same thing
  * twice in a row if it doesn't have to.
  *
- * As you add more playthroughs, transitions,
- * control parameters, and most importantly: patterns,
+ * As you add more *playthroughs*, **transitions**,
+ * <ins>control parameters</ins>, and most importantly: <ins>***patterns***</ins>,
  * the dj will start mixing and matching the different variations together, and
  * it won't simply keep repeating the same loop.
  *
  *
- * Notes:
- * - When you're working on a pattern or progression, or you're making a new one,
- *   it's nice if the dj actually plays that pattern.
  *
- *   We can make sure of this by specifying that our
- *   pattern or progression has priority by giving a second argument:
+ * ## Defaults
  *
- *   ```js
- *   // prioritizing a playthrough
- *   djPlaythrough(8, true, {
- *     // parameters
- *   })
+ * There are a few default parameters that are included in every progression:
  *
- *   // prioritizing a transition
- *   djTransition(8, true, {
- *     // parameters
- *   }, {
- *     // parameters
- *   })
+ * - time: A signal that goes from 0 to 1 over the course of the progression.
+ * - isTransition: 1 when inside of a transition, 0 otherwise
+ * - isPlaythrough: 1 when inside of a playthrough, 0 otherwise
  *
- *   // prioritizing a pattern
- *   djPattern(true, p => {
- *     // pattern
- *   })
- *   ```
  *
- *   The dj will always try to use progressions and patterns
- *   that are marked with priority first.
- *   Even if that means that it has to play the same pattern or progression
- *   multiple times in a row.
+ * There is a default playthrough that is only used when no other progressions
+ * have been created.
+ * It's 4 cycles long, and uses the default parameters.
  *
+ * The default parameters don't have to be static values.
+ * They can also be automations that are automatically
+ * applied as defaults to every progression.
+ *
+ * You can even use sliders:
+ *
+ * ```js
+ * $: dj({
+ *   fun: slider(83, 0, 100),
+ *   loud: slider(.7, 0, 1),
+ * })
+ * ```
+ *
+ *
+ * ## Priority
+ *
+ * Because the dj is alternating the patterns, it often happens that you don't
+ * hear a specific pattern for a while.
+ * If you're working on a pattern or progression and you want to make
+ * sure that you can hear it you can "solo" it in the same way that you can
+ * solo normal patterns:
+ *
+ * By putting an `S` in front of it:
+ *
+ * ```js
+ * // prioritizing a playthrough
+ * SdjPlaythrough(8, {
+ * // parameters
+ * })
+ *
+ * // prioritizing a transition
+ * SdjTransition(8, {
+ * // parameters
+ * }, {
+ * // parameters
+ * })
+ *
+ * // prioritizing a pattern
+ * SdjPattern(p => {
+ * // pattern
+ * })
+ * ```
+ *
+ * The dj will always try to use progressions and patterns
+ * that are marked as solo first (you can mark more than one at the same time).
+ * Even if that means that it has to play the same pattern or progression
+ * multiple times in a row.
+ *
+ *
+ * You can even take back complete control by doing the following:
+ *
+ * ```js
+ * // Solo playthrough with direct slider control.
+ * SdjPlaythrough(8, {
+ *   hpriser: slider(0, 0, 1),
+ *   kickpg: slider(1, 0, 1),
+ * })
+ *
+ * // Solo pattern that keeps playing on loop.
+ * SdjPattern(p => stack(
+ *   // my pattern
+ * ))
+ * ```
  *
  */
 
@@ -588,11 +697,7 @@ window.dj = (defaultProgression = undefined) => {
   return pat;
 }
 
-window.djPattern = function(priority, patFunc = undefined) {
-  if (patFunc === undefined) {
-    patFunc = priority;
-    priority = false;
-  }
+window.djPattern = function(patFunc, priority = false) {
   const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
   const result = TryDjFail(() => patFunc(defaultProgression));
   if (!isPattern(result)) {
@@ -600,6 +705,12 @@ window.djPattern = function(priority, patFunc = undefined) {
   }
   window.getDjConfig().patterns.push(new DjPattern(window.getDjConfig().patterns.length, patFunc, priority));
 }
+window.SdjPattern = function(patFunc) {
+  window.djPattern(patFunc, true);
+}
+window.djpattern = window.djPattern;
+window.sdjPattern = window.SdjPattern;
+window.sdjpattern = window.SdjPattern;
 
 function checkAgainstDefault(parameters) {
   const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
@@ -612,13 +723,9 @@ function checkAgainstDefault(parameters) {
   }
 }
 
-window.djPlaythrough = function(length, ...parameters) {
+window._djPlaythrough = function(priority, length, parameters) {
   if (!Array.isArray(parameters)) {
     parameters = [parameters];
-  }
-  let priority = false;
-  if (typeof parameters[0] === 'boolean') {
-    priority = parameters.shift();
   }
   if (parameters.length < 1) {
     DjFail('Playthrough must have at least 1 config pattern');
@@ -629,13 +736,20 @@ window.djPlaythrough = function(length, ...parameters) {
   );
 }
 
-window.djTransition = function(length, ...parameters) {
+
+window.djPlaythrough = function(length, ...parameters) {
+  window._djPlaythrough(false, length, parameters);
+}
+window.SdjPlaythrough = function(length, ...parameters) {
+  window._djPlaythrough(true, length, parameters);
+}
+window.djplaythrough = window.djPlaythrough;
+window.sdjPlaythrough = window.SdjPlaythrough;
+window.sdjplaythrough = window.SdjPlaythrough;
+
+window._djTransition = function(priority, length, parameters) {
   if (!Array.isArray(parameters)) {
     parameters = [parameters];
-  }
-  let priority = false;
-  if (typeof parameters[0] === 'boolean') {
-    priority = parameters.shift();
   }
   if (parameters.length < 2) {
     DjFail('Transition must have at least 2 config patterns');
@@ -645,5 +759,14 @@ window.djTransition = function(length, ...parameters) {
     new Progression(window.getDjConfig().progressions.length, true, length, parameters, priority)
   );
 }
+window.djTransition = function(length, ...parameters) {
+  window._djTransition(false, length, parameters);
+}
+window.SdjTransition = function(length, ...parameters) {
+  window._djTransition(true, length, parameters);
+}
+window.djtransition = window.djTransition;
+window.sdjTransition = window.SdjTransition;
+window.sdjtransition = window.SdjTransition;
 
 
