@@ -1,4 +1,5 @@
 /**
+ *
  * # --- Strudel Dough Jockey ---
  *
  * Strudel DJ emulates a "real" DJ by smoothly transitioning between patterns.
@@ -35,8 +36,7 @@
  * A `djPattern` is a "song" that the DJ will mix in its repertoire.
  * Notice the `p` argument that is being passed in, we'll come back to that later.
  *
- * With only a single `djPattern` specified, the dj will just keep playing this
- * single pattern over and over.
+ * With only a single `djPattern`, the dj keeps looping it over and over.
  *
  * Let's add a second `djPattern`:
  *
@@ -53,6 +53,8 @@
  *
  * It's a start, but it's a bit boring.
  *
+ * ## Parameters
+ *
  * To make it more interesting we first have to give the dj some parameters
  * to control, because like a real dj, it can't do anything if it doesn't
  * have a bunch of nobs to turn.
@@ -67,54 +69,54 @@
  * ```js
  * // Keep this at the top before all the other dj functions
  * $: dj({
- *   hpriser: "0", // range: 0 to 1
- *   kickpg: "1",  // range: 0 to 1
+ *   hpriser: slider(0, 0, 1),
+ *   kickpg: slider(1, 0, 1),
  * })
  * ```
  *
  * <details>
- * <summary>*What parameters should I use?*</summary>
- * ----------------------------
+ * <summary>
+ * Which parameters should I use?
+ * </summary>
  *
- * ## Parameters
+ * > You can add any number of arbitrary parameters, and each of the parameters
+ * > can be assigned an arbitrary pattern. So ultimately it entirely depends on
+ * > how *you* want to use them.
+ * >
+ * > However, it's good to restrict yourself to easily workable conventions
+ * > when starting out.
+ * >
+ * > For example, in this case we want the dj to smoothly modulate the `hpriser`
+ * > and `kickpg` parameters during a transition from one pattern to the next.
+ * >
+ * > Because the dj will be mixing a bunch of different patterns, we don't really
+ * > want the dj to know about the details of the patterns. The dj just knows about
+ * > the parameters. So instead of setting the `hpriser` to exact high-pass-filter
+ * > frequency values, we set it to a number between 0 and 1, where 0 means "off"
+ * > and 1 means "on".
+ * >
+ * > This is a convention that is already used in strudel for signals like
+ * > `saw`, `sine`, `rand` or `perlin`, and it allows each pattern to transform
+ * > it into the correct values by calling `p.hpriser.range(a, b)`.
+ * >
+ * > Of course this is just a convention, and you're completely free to set the
+ * > parameters to any values you want.
+ * >
+ * > For example:
+ * > ```js
+ * > $: dj({
+ * >   hpriser: "0",
+ * >   kickpg: "1",
+ * >   scale: "c:phrygian",
+ * >   strans: "4",
+ * >   energy: "100",
+ * >   motif: note("f a c e"),
+ * >   scrumtush: "occuboinkal",
+ * > })
+ * > ```
  *
- * You can add any number of arbitrary parameters, and each of the parameters
- * can be assigned an arbitrary pattern. So ultimately it entirely depends on
- * how *you* want to use them.
  *
- * However, it's good to restrict yourself to easily workable conventions
- * when starting out.
  *
- * For example, in this case we want the dj to smoothly modulate the `hpriser`
- * and `kickpg` parameters during a transition from one pattern to the next.
- *
- * Because the dj will be mixing a bunch of different patterns, we don't really
- * want the dj to know about the details of the patterns. The dj just knows about
- * the parameters. So instead of setting the `hpriser` to exact high-pass-filter
- * frequency values, we set it to a number between 0 and 1, where 0 means "off"
- * and 1 means "on".
- *
- * This is a convention that is already used in strudel for signals like
- * `saw`, `sine`, `rand` or `perlin`, and it allows each pattern to transform
- * it into the correct values by calling `p.hpriser.range(a, b)`.
- *
- * Of course this is just a convention, and you're completely free to set the
- * parameters to any values you want.
- *
- * For example:
- * ```js
- * $: dj({
- *   hpriser: "0",
- *   kickpg: "1",
- *   scale: "c:phrygian",
- *   strans: "4",
- *   energy: "100",
- *   motif: note("f a c e"),
- *   scrumtush: "occuboinkal",
- * })
- * ```
- *
- * ----------------------------
  * </details>
  *
  * Remember the `p` argument from earlier?
@@ -142,29 +144,53 @@
  * ))
  * ```
  *
- * We've set up the control parameters, but without the nobs being turned
- * the music still sounds the same
- * (all parameters are currently resting at their default values).
+ * <details>
+ * <summary>
+ * Now that we've set up the control parameters, we can use the sliders we
+ * created earlier to manually control the parameters.
+ * </summary>
  *
- * We solve this by adding:
+ * > If you want to change the time in between pattern switches, you can specify
+ * > the progression duration:
+ * >
+ * > ```js
+ * > // Set the progression duration to 8 cycles
+ * > $: dj(8, {
+ * >   hpriser: slider(0, 0, 1),
+ * >   kickpg: slider(1, 0, 1),
+ * > })
+ * > ```
+ * </details>
+ *
+ * Doing it manually is fun, but we want our dj to do it automatically.
+ *
+ * For that we need...
  *
  * ## Progressions
  *
- * A progression is basically a block in the dj's live set, where it plays
- * one or multiple patterns.
- * The dj always plays just 1 progression at a time, and when the current
- * progression is finished, it'll pick a new progression to continue.
+ * A progression is a collection of automations in the dj's live set.
+ * The dj plays one progression after the other, choosing randomly from the available ones.
  *
- * Each progression has a specified length in cycles, and can specify
- * the control parameter patterns for any number of patterns.
- *
+ * <details>
+ * <summary>
  * There are 2 types of progressions: playthroughs and transitions.
- * - Playthrough: The playback automation of single "song". Usually, a playthrough
- *   only controls 1 pattern.
- * - Transition: The automation that stitches together 2 playthroughs.
- *   Always has at least 2 patterns:
- *   - First the pattern that was playing in the last playthrough
- *   - Last the pattern that will play on the next playthrough
+ * </summary>
+ *
+ *
+ * > Each progression has a length in cycles, and a number of parameter configs,
+ * > each specifying the control parameters for a pattern.
+ * >
+ * > - Playthrough: The playback automation of single "song".
+ * >   Usually, a playthrough only controls 1 pattern, but it does support multiple.
+ * >
+ * > - Transition: The automation that stitches together 2 playthroughs.
+ * >   Always has at least 2 patterns:
+ * >   - First the pattern that was playing in the last playthrough
+ * >   - Last the pattern that will play on the next playthrough
+ * >   It can have any additional number of patterns in between these.
+ *
+ * </details>
+ *
  *
  *
  * Let's add a:
@@ -184,35 +210,35 @@
  * dj so they fit the 8 cycle duration of the progression.
  *
  * <details>
- * <summary>A few tips for writing progressions</summary>
- * --------------------
- *
- * As previously mentioned, control parameters with the range 0 to 1
- * are very useful.
- *
- * The patterns can be made in multiple ways:
- * - Just manually typing numbers.
- *   `"[0 .1 .2 .3 .4 .5 .6 .7 .8 .9] [1 .9 .8 .7 .6 .5] [.5 .6 .7 .8 .8 .7 .6 .5] [.5 .6 .7 .8 .9 1]"`
- *   This is cumbersome, and not really smooth either.
- *
- * - Make a sequence of different signals.
- *   `seq(saw, saw.range(1, .5), tri.range(.5, .8), saw.range(.5, 1))`
- *   Signals are already continuous, so we can string
- *   them together to get smooth transitions.
- *
- * - Use the range pattern notation to generate a range of numbers, and then
- *   divide them afterwards to get them in the 0 to 1 range.
- *   `"0 .. 100 100 .. 50 [50 .. 80 80 .. 50] 50 .. 100".div(100)`
- *   This is the best of both worlds in my opinion. The ranges are not quite
- *   continuous, but the resolution is high enough for smooth transitions.
+ * <summary>
+ * A few tips for writing progressions
+ * </summary>
  *
  *
- * > **Note**
- * > I have an idea for a function that would make it much easier to write
- * > smooth progressions. Likely coming soon...
+ * > As previously mentioned, control parameters with the range 0 to 1
+ * > are very useful.
+ * >
+ * > The patterns can be made in multiple ways:
+ * > - Just manually typing numbers.
+ * >   `"[0 .1 .2 .3 .4 .5 .6 .7 .8 .9] [1 .9 .8 .7 .6 .5] [.5 .6 .7 .8 .8 .7 .6 .5] [.5 .6 .7 .8 .9 1]"`
+ * >   This is cumbersome, and not really smooth either.
+ * >
+ * > - Make a sequence of different signals.
+ * >   `seq(saw, saw.range(1, .5), tri.range(.5, .8), saw.range(.5, 1))`
+ * >   Signals are already continuous, so we can string
+ * >   them together to get smooth transitions.
+ * >
+ * > - Use the range pattern notation to generate a range of numbers, and then
+ * >   divide them afterwards to get them in the 0 to 1 range.
+ * >   `"0 .. 100 100 .. 50 [50 .. 80 80 .. 50] 50 .. 100".div(100)`
+ * >   This is the best of both worlds in my opinion. The ranges are not quite
+ * >   continuous, but the resolution is high enough for smooth transitions.
+ * >
+ * >
+ * > > **Note**
+ * > > I have an idea for a function that would make it much easier to write
+ * > > smooth progressions. Likely coming soon...
  *
- *
- * --------------------
  * </details>
  *
  * You should now hear the dj use our defined playthrough to play the patterns.
@@ -237,6 +263,8 @@
  * <summary>
  * This transition is 8 cycles long and controls 2 patterns.
  * </summary>
+ *
+ *
  * > As mentioned before, the first and last patterns in the transition will
  * > be the same as the patterns from the previous and next progressions.
  *
@@ -266,27 +294,21 @@
  *
  * There are a few default parameters that are included in every progression:
  *
- * - time: A signal that goes from 0 to 1 over the course of the progression.
- * - isTransition: 1 when inside of a transition, 0 otherwise
- * - isPlaythrough: 1 when inside of a playthrough, 0 otherwise
+ * - `time`: A signal that goes from 0 to 1 over the course of the progression.
+ * - `isTransition`: 1 when inside of a transition, 0 otherwise
+ * - `isPlaythrough`: 1 when inside of a playthrough, 0 otherwise
+ * - `duration`: The total duration in cycles of the current progression.
+ *
+ * - `postgain`: This is a special parameter that defaults to 1 but can be
+ *   overridden by a progression, and directly controls the volume of the pattern.
  *
  *
- * There is a default playthrough that is only used when no other progressions
- * have been created.
- * It's 4 cycles long, and uses the default parameters.
+ * The progression specified in `dj()` is the default progression, which only
+ * plays if there are no other progressions. It's 4 cycles long by default if you
+ * don't specify the duration.
  *
- * The default parameters don't have to be static values.
- * They can also be automations that are automatically
- * applied as defaults to every progression.
- *
- * You can even use sliders:
- *
- * ```js
- * $: dj({
- *   fun: slider(83, 0, 100),
- *   loud: slider(.7, 0, 1),
- * })
- * ```
+ * All other progressions will inherit any parameters they don't specify from
+ * the default progression.
  *
  *
  * ## Priority
@@ -318,17 +340,11 @@
  * })
  * ```
  *
- * The dj will always try to use progressions and patterns
- * that are marked as solo first (you can mark more than one at the same time).
- * Even if that means that it has to play the same pattern or progression
- * multiple times in a row.
- *
- *
- * You can even take back complete control by doing the following:
+ * You can even solo the dj itself, so you can take back control with sliders:
  *
  * ```js
- * // Solo playthrough with direct slider control.
- * SdjPlaythrough(8, {
+ * // Solo dj with direct slider control.
+ * $: sdj(8, {
  *   hpriser: slider(0, 0, 1),
  *   kickpg: slider(1, 0, 1),
  * })
@@ -338,6 +354,14 @@
  *   // my pattern
  * ))
  * ```
+ *
+ * The dj will always try to use progressions and patterns
+ * that are marked as solo first (you can mark more than one at the same time).
+ * Even if that means that it has to play the same pattern or progression
+ * multiple times in a row.
+ *
+ * Soloing a track does not make it play immediately.
+ * It will simply be next in line for the next progression.
  *
  */
 
