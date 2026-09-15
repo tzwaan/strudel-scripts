@@ -471,7 +471,7 @@ class Block {
       const djPattern = window.getDjConfig().getPattern(this.patternIds[i]);
       // console.log('[Block]', patternFunc, this.patternIds[i]);
       const pattern = djPattern.patFunc(lateConfig)
-        .filterWhen(t => this.overlaps(t, false))
+        .filterWhen(t => this.overlaps(t))
         .mul(postgain(lateConfig.postgain));
       patterns.push(pattern);
     }
