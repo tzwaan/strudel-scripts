@@ -68,8 +68,8 @@ to add the parameters with their defaults:
 ```js
 // Keep this at the top before all the other dj functions
 $: dj({
-  hpriser: "0", // range: 0 to 1
-  kickpg: "1",  // range: 0 to 1
+  hpriser: slider(0, 0, 1),
+  kickpg: slider(1, 0, 1),
 })
 ```
 
@@ -143,11 +143,27 @@ djPattern(p => stack(
 ))
 ```
 
-We've set up the control parameters, but without the nobs being turned
-the music still sounds the same
-(all parameters are currently resting at their default values).
+<details>
+<summary>
+Now that we've set up the control parameters, we can use the sliders we
+created earlier to manually control the parameters.
+</summary>
 
-We solve this by adding:
+> If you want to change the time in between pattern switches, you can specify
+> the progression duration:
+>
+> ```js
+> // Set the progression duration to 8 cycles
+> $: dj(8, {
+>   hpriser: slider(0, 0, 1),
+>   kickpg: slider(1, 0, 1),
+> })
+> ```
+</details>
+
+Doing it manually is fun, but we want our dj to do it automatically.
+
+For that we need...
 
 ## Progressions
 
@@ -277,27 +293,21 @@ it won't simply keep repeating the same loop.
 
 There are a few default parameters that are included in every progression:
 
-- time: A signal that goes from 0 to 1 over the course of the progression.
-- isTransition: 1 when inside of a transition, 0 otherwise
-- isPlaythrough: 1 when inside of a playthrough, 0 otherwise
+- `time`: A signal that goes from 0 to 1 over the course of the progression.
+- `isTransition`: 1 when inside of a transition, 0 otherwise
+- `isPlaythrough`: 1 when inside of a playthrough, 0 otherwise
+- `duration`: The total duration in cycles of the current progression.
+
+- `postgain`: This is a special parameter that defaults to 1 but can be
+  overridden by a progression, and directly controls the volume of the pattern.
 
 
-There is a default playthrough that is only used when no other progressions
-have been created.
-It's 4 cycles long, and uses the default parameters.
+The progression specified in `dj()` is the default progression, which only
+plays if there are no other progressions. It's 4 cycles long by default if you
+don't specify the duration.
 
-The default parameters don't have to be static values.
-They can also be automations that are automatically
-applied as defaults to every progression.
-
-You can even use sliders:
-
-```js
-$: dj({
-  fun: slider(83, 0, 100),
-  loud: slider(.7, 0, 1),
-})
-```
+All other progressions will inherit any parameters they don't specify from
+the default progression.
 
 
 ## Priority
@@ -329,17 +339,11 @@ SdjPattern(p => {
 })
 ```
 
-The dj will always try to use progressions and patterns
-that are marked as solo first (you can mark more than one at the same time).
-Even if that means that it has to play the same pattern or progression
-multiple times in a row.
-
-
-You can even take back complete control by doing the following:
+You can even solo the dj itself, so you can take back control with sliders:
 
 ```js
-// Solo playthrough with direct slider control.
-SdjPlaythrough(8, {
+// Solo dj with direct slider control.
+$: sdj(8, {
   hpriser: slider(0, 0, 1),
   kickpg: slider(1, 0, 1),
 })
@@ -349,4 +353,14 @@ SdjPattern(p => stack(
   // my pattern
 ))
 ```
+
+The dj will always try to use progressions and patterns
+that are marked as solo first (you can mark more than one at the same time).
+Even if that means that it has to play the same pattern or progression
+multiple times in a row.
+
+Soloing a track does not make it play immediately.
+It will simply be next in line for the next progression.
+
+
 
