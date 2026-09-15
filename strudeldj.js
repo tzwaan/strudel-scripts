@@ -106,7 +106,7 @@
  * > ```js
  * > $: dj({
  * >   hpriser: "0",
- * >   kickpg: "1",
+ * >   kickpg: slider(1, 0, 1),
  * >   scale: "c:phrygian",
  * >   strans: "4",
  * >   energy: "100",
@@ -199,8 +199,8 @@
  *
  * ```js
  * djPlaythrough(8, {
- *   hpriser: "0 0 0 0 .. 100".div(100),
- *   kickpg: "100 [100@2 0] 100 100 .. 0".div(100),
+ *   hpriser: smooth("0 0 0 0:1"),
+ *   kickpg: smooth("1 [1 1:0] 1 1:0"),
  * })
  * ```
  *
@@ -234,10 +234,14 @@
  * >   This is the best of both worlds in my opinion. The ranges are not quite
  * >   continuous, but the resolution is high enough for smooth transitions.
  * >
+ * > - Use the `smooth` function now included with strudel dj:
+ * >   `smooth("0 1 [.5 .8:.5] .5:1")`
+ * >   This turns a pattern of numbers into a smooth signal. Each number
+ * >   will start at its own value and linearly transition so it equals the
+ * >   next number when that starts.
+ * >   You can also use a pair of numbers to specify both the begin and end value
+ * >   in a single hap.
  * >
- * > > **Note**
- * > > I have an idea for a function that would make it much easier to write
- * > > smooth progressions. Likely coming soon...
  *
  * </details>
  *
@@ -251,11 +255,11 @@
  *
  * ```js
  * djTransition(8, {
- *   kickpg: "100 .. 0".div(100),
- *   hpriser: "0 0 .. 100".div(100),
+ *   kickpg: smooth("1:0"),
+ *   hpriser: smooth("0 0:1"),
  * }, {
- *   kickpg: "0 .. 100".div(100),
- *   hpriser: "100 100 .. 30".div(100),
+ *   kickpg: smooth("0:1"),
+ *   hpriser: smooth("1 1:.3"),
  * })
  * ```
  *
@@ -295,13 +299,17 @@
  * There are a few default parameters that are included in every progression:
  *
  * - `time`: A signal that goes from 0 to 1 over the course of the progression.
- * - `isTransition`: 1 when inside of a transition, 0 otherwise
- * - `isPlaythrough`: 1 when inside of a playthrough, 0 otherwise
  * - `duration`: The total duration in cycles of the current progression.
+ * - `isPlaythrough`: 1 when inside of a playthrough, 0 otherwise
+ * - `isTransition`: 1 when inside of a transition, 0 otherwise
+ * - `isIntro`: 1 when inside of a transition and this pattern
+ *   will play during the next progression, 0 otherwise
+ * - `isOutro`: 1 when inside of a transition and this pattern was played
+ *   during the last progression
  *
- * - `postgain`: This is a special parameter that defaults to 1 but can be
- *   overridden by a progression, and directly controls the volume of the pattern.
- *
+ * - `volume`: This is a special parameter that
+ *   directly controls the volume of the pattern.
+ *   It defaults to 1, but can be overridden by a progression.
  *
  * The progression specified in `dj()` is the default progression, which only
  * plays if there are no other progressions. It's 4 cycles long by default if you
@@ -363,6 +371,8 @@
  * Soloing a track does not make it play immediately.
  * It will simply be next in line for the next progression.
  *
+ *
+ *
  */
 
 
@@ -396,10 +406,12 @@ class Progression {
 
   get parameters() {
     if (this.__parameters === undefined) {
-      this.__parameters = this._parameters.map((configPattern) => ({
+      this.__parameters = this._parameters.map((configPattern, i) => ({
         // set internal defaults first
         isTransition: pure(this.isTransition ? 1 : 0),
         isPlaythrough: pure(this.isTransition ? 0 : 1),
+        isIntro: pure((this.isTransition && i === this._parameters.length - 1) ? 1 : 0),
+        isOutro: pure((this.isTransition && i === 0) ? 1 : 0),
         duration: pure(this.duration),
         // override with user-provided defaults
         ...window.getDjConfig().defaultProgression._parameters[0],
@@ -472,7 +484,7 @@ class Block {
       // console.log('[Block]', patternFunc, this.patternIds[i]);
       const pattern = djPattern.patFunc(lateConfig)
         .filterWhen(t => this.overlaps(t))
-        .mul(postgain(lateConfig.postgain));
+        .mul(postgain(lateConfig.volume));
       patterns.push(pattern);
     }
     this.__pattern = stack(...patterns);
@@ -673,12 +685,13 @@ function addBuiltinControls(defaultProgression) {
   defaultProgression ??= { };
   return {
     time: saw,
-    postgain: pure(1),
+    volume: pure(1),
     ...defaultProgression,
   };
 }
 
 function initDj(priority, args) {
+  window.__djColor = 0;
   let duration = 4;
   let defaultProgression = undefined;
   for (const arg of args) {
@@ -746,13 +759,37 @@ window._dj = (priority, ...args) => {
   return pat;
 }
 
+const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+
+// Source - https://stackoverflow.com/a/64090995
+// Posted by Kamil Kiełczewski, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-09-16, License - CC BY-SA 4.0
+
+// input: h as an angle in [0,360] and s,l in [0,1] - output: r,g,b in [0,1]
+function hsl2rgb(h,s,l)
+{
+   let a=s*Math.min(l,1-l);
+   let f= (n,k=(n+h/30)%12) => l - a*Math.max(Math.min(k-3,9-k,1),-1);
+   return [f(0),f(8),f(4)];
+}
+function getNextColor() {
+  const currentColor = window.__djColor * 360;
+  const [r, g, b] = hsl2rgb(currentColor, .8, .6).map((c) => Math.floor(c * 256));
+  window.__djColor = (window.__djColor + GOLDEN_RATIO) % 1;
+  const result = "#" + r.toString(16) + g.toString(16) + b.toString(16);
+  // console.log(currentColor, [r, g, b], result);
+  return result;
+}
+
 window.djPattern = function(patFunc, priority = false) {
   const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
   const result = TryDjFail(() => patFunc(defaultProgression));
   if (!isPattern(result)) {
     DjFail('djPattern function does not return a pattern');
   }
-  window.getDjConfig().patterns.push(new DjPattern(window.getDjConfig().patterns.length, patFunc, priority));
+  const color = getNextColor();
+  const coloredFunc = (p) => patFunc(p).color(color);
+  window.getDjConfig().patterns.push(new DjPattern(window.getDjConfig().patterns.length, coloredFunc, priority));
 }
 window.SdjPattern = function(patFunc) {
   window.djPattern(patFunc, true);
@@ -817,5 +854,67 @@ window.SdjTransition = function(length, ...parameters) {
 window.djtransition = window.djTransition;
 window.sdjTransition = window.SdjTransition;
 window.sdjtransition = window.SdjTransition;
+
+
+function __smoothHap(time, hapA, hapB) {
+  let a = hapA.value;
+  let b = Array.isArray(hapB.value) ? hapB.value[0] : hapB.value;
+  let context = hapA.context;
+  if (Array.isArray(hapA.value)) {
+    a = hapA.value[0];
+    b = hapA.value[1];
+  } else {
+    context = hapA.combineContext(hapB);
+  }
+  const progress = time.sub(hapA.whole.begin)
+    .div(hapA.whole.end.sub(hapA.whole.begin));
+  return new Hap(hapA.whole, hapA.part, a + (b - a) * (progress.lt(0) ? 0 : progress), context);
+}
+
+window.__smoothMargin = Fraction(1, 4);
+window.smooth = register('smooth', (pat) => {
+  return new Pattern((state) => {
+    const haps = pat.query(state);
+    if (!haps.length) {
+      return haps;
+    }
+    const endHap = haps.reduce((max, hap) => hap.whole.end.gt(max.whole.end) ? hap : max);
+
+    let onsetHaps = [
+      ...haps,
+      ...pat.query(state.withSpan(span => new TimeSpan(span.end, endHap.whole.end.add(window.__smoothMargin)))),
+    ];
+
+    onsetHaps = onsetHaps
+      // sort by onsets
+      .sort((a, b) => a.whole.begin.compare(b.whole.begin))
+      // Make onsets unique
+      .filter((x, i, arr) => i == (arr.length - 1) || x.whole.begin.ne(arr[i + 1].whole.begin));
+    const newHaps = [];
+
+    for (const hap of haps) {
+      // Ignore if the part starts after the original query
+      if (hap.part.begin.gt(state.span.end)) {
+        continue;
+      }
+
+      // Find the next onset
+      const next = onsetHaps.find((onsetHap) => onsetHap.whole.begin.gte(hap.whole.end));
+      // If there is no next onset, the query window is not large enough.
+      // For now we bail out to avoid a crash.
+      // TODO: Handle this better
+      if (next === undefined) {
+        continue;
+      }
+      // -- We don't need this, because we don't query into the past.
+      // Ignore if the part ended before the original query, and hasn't expanded inside
+      // if (next.whole.begin.lte(state.span.begin)) {
+      //   continue;
+      // }
+      newHaps.push(__smoothHap(state.span.begin, hap, next));
+    }
+    return newHaps;
+  });
+});
 
 

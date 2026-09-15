@@ -105,7 +105,7 @@ Which parameters should I use?
 > ```js
 > $: dj({
 >   hpriser: "0",
->   kickpg: "1",
+>   kickpg: slider(1, 0, 1),
 >   scale: "c:phrygian",
 >   strans: "4",
 >   energy: "100",
@@ -198,8 +198,8 @@ Let's add a:
 
 ```js
 djPlaythrough(8, {
-  hpriser: "0 0 0 0 .. 100".div(100),
-  kickpg: "100 [100@2 0] 100 100 .. 0".div(100),
+  hpriser: smooth("0 0 0 0:1"),
+  kickpg: smooth("1 [1 1:0] 1 1:0"),
 })
 ```
 
@@ -233,10 +233,14 @@ A few tips for writing progressions
 >   This is the best of both worlds in my opinion. The ranges are not quite
 >   continuous, but the resolution is high enough for smooth transitions.
 >
+> - Use the `smooth` function now included with strudel dj:
+>   `smooth("0 1 [.5 .8:.5] .5:1")`
+>   This turns a pattern of numbers into a smooth signal. Each number
+>   will start at its own value and linearly transition so it equals the
+>   next number when that starts.
+>   You can also use a pair of numbers to specify both the begin and end value
+>   in a single hap.
 >
-> > **Note**
-> > I have an idea for a function that would make it much easier to write
-> > smooth progressions. Likely coming soon...
 
 </details>
 
@@ -250,11 +254,11 @@ Let's fix that by creating our first:
 
 ```js
 djTransition(8, {
-  kickpg: "100 .. 0".div(100),
-  hpriser: "0 0 .. 100".div(100),
+  kickpg: smooth("1:0"),
+  hpriser: smooth("0 0:1"),
 }, {
-  kickpg: "0 .. 100".div(100),
-  hpriser: "100 100 .. 30".div(100),
+  kickpg: smooth("0:1"),
+  hpriser: smooth("1 1:.3"),
 })
 ```
 
@@ -294,13 +298,17 @@ it won't simply keep repeating the same loop.
 There are a few default parameters that are included in every progression:
 
 - `time`: A signal that goes from 0 to 1 over the course of the progression.
-- `isTransition`: 1 when inside of a transition, 0 otherwise
-- `isPlaythrough`: 1 when inside of a playthrough, 0 otherwise
 - `duration`: The total duration in cycles of the current progression.
+- `isPlaythrough`: 1 when inside of a playthrough, 0 otherwise
+- `isTransition`: 1 when inside of a transition, 0 otherwise
+- `isIntro`: 1 when inside of a transition and this pattern
+  will play during the next progression, 0 otherwise
+- `isOutro`: 1 when inside of a transition and this pattern was played
+  during the last progression
 
-- `postgain`: This is a special parameter that defaults to 1 but can be
-  overridden by a progression, and directly controls the volume of the pattern.
-
+- `volume`: This is a special parameter that
+  directly controls the volume of the pattern.
+  It defaults to 1, but can be overridden by a progression.
 
 The progression specified in `dj()` is the default progression, which only
 plays if there are no other progressions. It's 4 cycles long by default if you
