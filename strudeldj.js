@@ -373,9 +373,13 @@ class Progression {
   get parameters() {
     if (this.__parameters === undefined) {
       this.__parameters = this._parameters.map((configPattern) => ({
-        ...window.getDjConfig().defaultProgression._parameters[0],
+        // set internal defaults first
         isTransition: pure(this.isTransition ? 1 : 0),
         isPlaythrough: pure(this.isTransition ? 0 : 1),
+        duration: pure(this.duration),
+        // override with user-provided defaults
+        ...window.getDjConfig().defaultProgression._parameters[0],
+        // override with actual settings
         ...configPattern,
       }));
     }
@@ -442,7 +446,9 @@ class Block {
       // console.log('[Block] patternIds', this.patternIds);
       const djPattern = window.getDjConfig().getPattern(this.patternIds[i]);
       // console.log('[Block]', patternFunc, this.patternIds[i]);
-      const pattern = djPattern.patFunc(lateConfig).filterWhen(t => this.overlaps(t, false));
+      const pattern = djPattern.patFunc(lateConfig)
+        .filterWhen(t => this.overlaps(t, false))
+        .mul(postgain(lateConfig.postgain));
       patterns.push(pattern);
     }
     this.__pattern = stack(...patterns);
@@ -468,6 +474,9 @@ class DjConfig {
   }
 
   get priorityProgressions() {
+    if (this.defaultProgression.priority) {
+      return [this.defaultProgression, ...this.progressions.filter((prog) => prog.priority)];
+    }
     return this.progressions.filter((prog) => prog.priority);
   }
   get priorityPatterns() {
@@ -639,22 +648,32 @@ window.Finalize = function() {
 function addBuiltinControls(defaultProgression) {
   defaultProgression ??= { };
   return {
-    isTransition: "0",
-    isPlaythrough: "0",
     time: saw,
+    postgain: pure(1),
     ...defaultProgression,
   };
 }
 
-function initDj(defaultProgression = undefined) {
+function initDj(priority, args) {
+  let duration = 4;
+  let defaultProgression = undefined;
+  for (const arg of args) {
+    if (typeof arg === 'number') {
+      duration = arg;
+    }
+    if (typeof arg === 'object') {
+      defaultProgression = arg;
+    }
+  }
+  console.log(priority, duration, defaultProgression);
+
   console.log('[DjConfig] Create')
   window.__justStarted = true;
   window.__djConfig = new DjConfig();
   window.__djConfig.failed = false;
-  if (Array.isArray(defaultProgression)) {
-    DjFail('defaultProgression was an array, expected an object')
-  }
-  window.getDjConfig().defaultProgression = new Progression(-1, false, 4, addBuiltinControls(defaultProgression));
+  window.getDjConfig().defaultProgression = new Progression(
+    -1, false, duration, addBuiltinControls(defaultProgression), priority
+  );
   const isStarted = getIsStarted();
 
   if (window._djState === undefined || !isStarted) {
@@ -669,9 +688,17 @@ function initDj(defaultProgression = undefined) {
   }
 }
 
+window.dj = (...args) => {
+  return window._dj(false, ...args);
+}
+window.Sdj = (...args) => {
+  return window._dj(true, ...args);
+}
+window.sdj = window.Sdj;
 
-window.dj = (defaultProgression = undefined) => {
-  initDj(defaultProgression);
+
+window._dj = (priority, ...args) => {
+  initDj(priority, args);
   console.log('[DjConfig] Whole Config', window._djConfig);
   const djState = window._djState;
   let pat = new Pattern((state) => {
