@@ -665,7 +665,6 @@ function initDj(priority, args) {
       defaultProgression = arg;
     }
   }
-  console.log(priority, duration, defaultProgression);
 
   console.log('[DjConfig] Create')
   window.__justStarted = true;
@@ -681,10 +680,9 @@ function initDj(priority, args) {
     window._djState = new DjState();
   } else {
     // DJ State must persist between updates, so we copy the values
-    console.log('[DjState] Recreate');
     const blocks = window._djState.blocks.map(block => new Block(block.isTransition, block.timespan, block.progressionId, block.patternIds, false))
+    console.log('[DjState] Recreate', blocks);
     window._djState = new DjState(blocks);
-    console.log(window._djState.blocks);
   }
 }
 
@@ -699,7 +697,7 @@ window.sdj = window.Sdj;
 
 window._dj = (priority, ...args) => {
   initDj(priority, args);
-  console.log('[DjConfig] Whole Config', window._djConfig);
+  // console.log('[DjConfig] Whole Config', window._djConfig);
   const djState = window._djState;
   let pat = new Pattern((state) => {
     Finalize();
