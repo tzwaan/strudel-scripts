@@ -738,6 +738,14 @@ window._dj = (priority, ...args) => {
   const djState = window._djState;
   let pat = new Pattern((state) => {
     Finalize();
+
+    if (state.span.end.lt(0)) {
+      return [];
+    }
+
+    state = state.span.begin.lt(0)
+      ? state.withSpan(span => new TimeSpan(0, span.end))
+      : state;
     // For some reason when we stop and start playback,
     // the old time gets queried once.
     // We want to ignore this when it happens so we don't
