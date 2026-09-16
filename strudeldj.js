@@ -69,8 +69,8 @@
  * ```js
  * // Keep this at the top before all the other dj functions
  * $: dj({
- *   hpriser: slider(0, 0, 1),
- *   kickpg: slider(1, 0, 1),
+ *   hpriser: slider(0),
+ *   kickpg: slider(1),
  * })
  * ```
  *
@@ -106,7 +106,7 @@
  * > ```js
  * > $: dj({
  * >   hpriser: "0",
- * >   kickpg: slider(1, 0, 1),
+ * >   kickpg: slider(1),
  * >   scale: "c:phrygian",
  * >   strans: "4",
  * >   energy: "100",
@@ -156,8 +156,8 @@
  * > ```js
  * > // Set the progression duration to 8 cycles
  * > $: dj(8, {
- * >   hpriser: slider(0, 0, 1),
- * >   kickpg: slider(1, 0, 1),
+ * >   hpriser: slider(0),
+ * >   kickpg: slider(1),
  * > })
  * > ```
  * </details>
@@ -353,8 +353,8 @@
  * ```js
  * // Solo dj with direct slider control.
  * $: sdj(8, {
- *   hpriser: slider(0, 0, 1),
- *   kickpg: slider(1, 0, 1),
+ *   hpriser: slider(0),
+ *   kickpg: slider(1),
  * })
  *
  * // Solo pattern that keeps playing on loop.

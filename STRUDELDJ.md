@@ -68,8 +68,8 @@ to add the parameters with their defaults:
 ```js
 // Keep this at the top before all the other dj functions
 $: dj({
-  hpriser: slider(0, 0, 1),
-  kickpg: slider(1, 0, 1),
+  hpriser: slider(0),
+  kickpg: slider(1),
 })
 ```
 
@@ -94,9 +94,9 @@ Which parameters should I use?
 > frequency values, we set it to a number between 0 and 1, where 0 means "off"
 > and 1 means "on".
 >
-> This is a convention that is already used in strudel for signals like
-> `saw`, `sine`, `rand` or `perlin`, and it allows each pattern to transform
-> it into the correct values by calling `p.hpriser.range(a, b)`.
+> This is a convention that is already used in strudel for signals like `saw`,
+> `sine`, `rand`, `perlin` and importantly `slider` with a single argument.
+> It allows each pattern to transform it into their own values using `.range(a, b)`.
 >
 > Of course this is just a convention, and you're completely free to set the
 > parameters to any values you want.
@@ -105,7 +105,7 @@ Which parameters should I use?
 > ```js
 > $: dj({
 >   hpriser: "0",
->   kickpg: slider(1, 0, 1),
+>   kickpg: slider(1),
 >   scale: "c:phrygian",
 >   strans: "4",
 >   energy: "100",
@@ -155,8 +155,8 @@ created earlier to manually control the parameters.
 > ```js
 > // Set the progression duration to 8 cycles
 > $: dj(8, {
->   hpriser: slider(0, 0, 1),
->   kickpg: slider(1, 0, 1),
+>   hpriser: slider(0),
+>   kickpg: slider(1),
 > })
 > ```
 </details>
@@ -352,8 +352,8 @@ You can even solo the dj itself, so you can take back control with sliders:
 ```js
 // Solo dj with direct slider control.
 $: sdj(8, {
-  hpriser: slider(0, 0, 1),
-  kickpg: slider(1, 0, 1),
+  hpriser: slider(0),
+  kickpg: slider(1),
 })
 
 // Solo pattern that keeps playing on loop.
