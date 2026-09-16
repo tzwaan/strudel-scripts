@@ -136,19 +136,19 @@ register('rbpf', (x, pat) => {
 
 register(['lpt', 'lptrack'], (x, pat) => {
     return pat.fmap(v => {
-        return {...v, cutoff: getFreq(v.note) * x}
+        return {...v, cutoff: getFreq(v.note) * Math.pow(2, x - 1)}
     })
 })
 
 register(['hpt', 'hptrack'], (x, pat) => {
     return pat.fmap(v => {
-        return {...v, hcutoff: getFreq(v.note) * x}
+        return {...v, hcutoff: getFreq(v.note) * Math.pow(2, x - 1)}
     })
 })
 
 register(['bpt', 'bptrack'], (x, pat) => {
     return pat.fmap(v => {
-        return {...v, bandf: getFreq(v.note) * x}
+        return {...v, bandf: getFreq(v.note) * Math.pow(2, x - 1)}
     })
 })
 
