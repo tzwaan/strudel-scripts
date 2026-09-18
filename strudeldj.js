@@ -477,12 +477,12 @@ class Block {
       const config = parameters[i];
       const lateConfig = {};
       for (const [key, value] of Object.entries(config)) {
-        lateConfig[key] = reify(value).slow(this.timespan.duration).late(this.timespan.begin);
+        lateConfig[key] = reify(value).slow(this.timespan.duration);
       }
       // console.log('[Block] patternIds', this.patternIds);
       const djPattern = window.getDjConfig().getPattern(this.patternIds[i]);
       // console.log('[Block]', patternFunc, this.patternIds[i]);
-      const pattern = djPattern.patFunc(lateConfig)
+      const pattern = djPattern.patFunc(lateConfig).late(this.timespan.begin)
         .filterWhen(t => this.overlaps(t))
         .mul(postgain(lateConfig.volume));
       patterns.push(pattern);
@@ -704,13 +704,14 @@ function initDj(priority, args) {
   }
 
   console.log('[DjConfig] Create')
-  window.__justStarted = true;
   window.__djConfig = new DjConfig();
   window.__djConfig.failed = false;
   window.getDjConfig().defaultProgression = new Progression(
     -1, false, duration, addBuiltinControls(defaultProgression), priority
   );
   const isStarted = getIsStarted();
+
+  window.__justStarted = isStarted ? 0 : 10;
 
   if (window._djState === undefined || !isStarted) {
     console.log('[DjState] Create');
@@ -750,8 +751,8 @@ window._dj = (priority, ...args) => {
     // the old time gets queried once.
     // We want to ignore this when it happens so we don't
     // generate a bunch of blocks.
-    if (window.__justStarted && state.span.begin.gt(4)) {
-      window.__justStarted = false;
+    window.__justStarted--;
+    if (window.__justStarted > 0 && state.span.begin.gt(4)) {
       return [];
     }
     const seed = state.controls.randSeed ?? 0;
