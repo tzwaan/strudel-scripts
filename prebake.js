@@ -214,7 +214,7 @@ register('break', (start, end, pat) => {
 })
 
 register('endAt', (cycle, pat) => {
-    return pat.filterWhen(t.lt(cycle))
+    return pat.filterWhen(t => t.lt(cycle))
 })
 
 register('introRibbon', (intro, total, pat) => {
@@ -519,30 +519,92 @@ register('trancegate', (density, seed, length, pat) => {
 // Scrubs randomly through a collection of samples in a trancegate fashion
 // s("scrubbass").scrubgate(slider(0.748), 0, 2)
 register('scrubgate', (density, seed, length, pat) => {
-    seed = reify(seed)
-    length = reify(length)
-    return pat.scrub(rand.rib(seed, length).trancegate(density, seed, length))
+  seed = reify(seed)
+  length = reify(length)
+  return pat.scrub(rand.rib(seed, length).trancegate(density, seed, length))
 }, false)
 
 
 window.automate = register('automate', pat => {
-    return new Pattern(state => {
-        const haps = []
-        for (const hap of pat.queryArc(state.span.begin,state.span.end)) {
-            if (Array.isArray(hap.value)) {
-                const start = hap.whole.begin.valueOf()
-                const end = hap.whole.end.valueOf()
-                const a = hap.value[0]
-                const b = hap.value[1]
-                const progress = (state.span.begin - start) / (end - start)
-                haps.push(new Hap(hap.whole, hap.part, a + (b - a) * progress, hap.context))
-            } else {
-                haps.push(hap)
-            }
-        }
-        return haps
-    })
+  return new Pattern(state => {
+    const haps = []
+    for (const hap of pat.queryArc(state.span.begin,state.span.end)) {
+      if (Array.isArray(hap.value)) {
+        const start = hap.whole.begin.valueOf()
+        const end = hap.whole.end.valueOf()
+        const a = hap.value[0]
+        const b = hap.value[1]
+        const progress = (state.span.begin - start) / (end - start)
+        haps.push(new Hap(hap.whole, hap.part, a + (b - a) * progress, hap.context))
+      } else {
+        haps.push(hap)
+      }
+    }
+    return haps
+  })
 })
+
+function __smoothHap(time, hapA, hapB) {
+  let a = hapA.value;
+  let b = Array.isArray(hapB.value) ? hapB.value[0] : hapB.value;
+  let context = hapA.context;
+  if (Array.isArray(hapA.value)) {
+    a = hapA.value[0];
+    b = hapA.value[1];
+  } else {
+    context = hapA.combineContext(hapB);
+  }
+  const progress = time.sub(hapA.whole.begin)
+    .div(hapA.whole.end.sub(hapA.whole.begin));
+  return new Hap(hapA.whole, hapA.part, a + (b - a) * (progress.lt(0) ? 0 : progress), context);
+}
+
+window.__smoothMargin = Fraction(1, 4);
+window.smooth = register('smooth', (pat) => {
+  return new Pattern((state) => {
+    const haps = pat.query(state);
+    if (!haps.length) {
+      return haps;
+    }
+    const endHap = haps.reduce((max, hap) => hap.whole.end.gt(max.whole.end) ? hap : max);
+
+    let onsetHaps = [
+      ...haps,
+      ...pat.query(state.withSpan(span => new TimeSpan(span.end, endHap.whole.end.add(window.__smoothMargin)))),
+    ];
+
+    onsetHaps = onsetHaps
+      // sort by onsets
+      .sort((a, b) => a.whole.begin.compare(b.whole.begin))
+      // Make onsets unique
+      .filter((x, i, arr) => i === (arr.length - 1) || x.whole.begin.ne(arr[i + 1].whole.begin));
+    const newHaps = [];
+
+    for (const hap of haps) {
+      // Ignore if the part starts after the original query
+      if (hap.part.begin.gt(state.span.end)) {
+        continue;
+      }
+
+      // Find the next onset
+      const next = onsetHaps.find((onsetHap) => onsetHap.whole.begin.gte(hap.whole.end));
+      // If there is no next onset, the query window is not large enough.
+      // For now we bail out to avoid a crash.
+      // TODO: Handle this better
+      if (next === undefined) {
+        continue;
+      }
+      // -- We don't need this, because we don't query into the past.
+      // Ignore if the part ended before the original query, and hasn't expanded inside
+      // if (next.whole.begin.lte(state.span.begin)) {
+      //   continue;
+      // }
+      newHaps.push(__smoothHap(state.span.begin, hap, next));
+    }
+    return newHaps;
+  });
+});
+
 
 
 
