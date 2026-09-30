@@ -406,7 +406,7 @@ class Progression {
 
   get parameters() {
     if (this.__parameters === undefined) {
-      this.__parameters = this._parameters.map((configPattern, i) => ({
+      this.__parameters = this._parameters.map((parameterConfig, i) => ({
         // set internal defaults first
         isTransition: pure(this.isTransition ? 1 : 0),
         isPlaythrough: pure(this.isTransition ? 0 : 1),
@@ -414,12 +414,18 @@ class Progression {
         isOutro: pure((this.isTransition && i === 0) ? 1 : 0),
         duration: pure(this.duration),
         // override with user-provided defaults
-        ...window.getDjConfig().defaultProgression._parameters[0],
+        ...window.getDjConfig().defaultProgression._parameters[0].parameters,
         // override with actual settings
-        ...configPattern,
+        ...parameterConfig.parameters,
       }));
     }
     return this.__parameters;
+  }
+  get categories() {
+    if (this.__categories === undefined) {
+      this.__categories = this._parameters.map((parameterConfig) => parameterConfig.category);
+    }
+    return this.__categories;
   }
 
   get nrPatterns() {
@@ -463,6 +469,9 @@ class Block {
   }
   get endPatternId() {
     return this.patternIds[this.patternIds.length - 1];
+  }
+  get patterns() {
+    return this.patternIds.map((id) => window.getDjConfig().patterns[id]);
   }
 
   get pattern() {
@@ -540,6 +549,60 @@ class DjConfig {
   }
 }
 
+class PatternBag {
+  constructor(priorityPatterns, patterns, prevPatterns, time, seed) {
+    this.time = time;
+    this.seed = seed;
+    this.salt = 1;
+    this.__priorityPatterns = this.shuffle(priorityPatterns);
+    this.__patterns = patterns;
+    this.__prevPatterns = prevPatterns;
+    this.grouped = {};
+    console.log(this.__priorityPatterns, this.__patterns, this.__prevPatterns);
+  }
+  nextSeed() {
+    this.salt++;
+    return this.seed + this.salt;
+  }
+  shuffle(items) {
+    return shuffle(items, this.time, this.nextSeed());
+  }
+  getNext(category) {
+    const isCategory = (p) => p.category === category;
+
+    if (!(category in this.grouped)) {
+      this.grouped[category] = [
+        ...this.shuffle(this.__priorityPatterns.filter(isCategory)),
+        ...this.shuffle(this.__patterns.filter(isCategory)),
+        ...this.shuffle(this.__prevPatterns.filter(isCategory)),
+      ];
+      console.log(category, [...this.grouped[category]]);
+    }
+
+    if (!this.grouped[category].length) {
+      this.grouped[category] = [
+        ...this.shuffle(this.__patterns.filter(isCategory)),
+        ...this.shuffle(this.__prevPatterns.filter(isCategory)),
+      ];
+      console.log(category, [...this.grouped[category]]);
+      if (!this.grouped[category].length) {
+        return window.getDjConfig().getPattern(-1);
+      }
+    }
+    return this.grouped[category].shift();
+  }
+}
+
+function shuffle(items, time, seed) {
+  const result = [];
+  const rands = myGetRandsAtTime(time, items.length, seed);
+  for (let i = 0; i < items.length; i++) {
+    result.push([items[i], rands[i]]);
+  }
+  return result.sort((a, b) => (a[1] > b[1]) - (a[1] < b[1]))
+    .map(x => x[0]);
+}
+
 class DjState {
   constructor(blocks = []) {
     this.blocks = blocks;
@@ -548,6 +611,7 @@ class DjState {
     if (t.lt(0)) {
       t = Fraction(0);
     }
+
     if (!this.blocks.length) {
       return this.createNewBlock(t, seed);
     }
@@ -564,46 +628,34 @@ class DjState {
     }
     throw new Error('This should never happen');
   }
-  shuffleIds(ids, time, seed) {
-    const result = [];
-    const rands = myGetRandsAtTime(time, ids.length, seed);
-    for (let i = 0; i < ids.length; i++) {
-      result.push([ids[i], rands[i]]);
-    }
-    return result.sort((a, b) => (a[1] > b[1]) - (a[1] < b[1]))
-      .map(x => x[0]);
-  }
-  pickNewPatterns(time, nrPatterns, lastPatternEndId, transition, seed) {
+  pickNewPatterns(progression, time, prev, transition, seed) {
     if (window.getDjConfig().patterns.length === 1) {
-      return Array(nrPatterns).fill(0);
+      return Array(progression.nrPatterns).fill(0);
     } else if (window.getDjConfig().patterns.length === 0) {
-      return Array(nrPatterns).fill(-1);
+      return Array(progression.nrPatterns).fill(-1);
     }
-    const allIds = window.getDjConfig().patterns.map((_, i) => i);
+    let patterns = [...window.getDjConfig().patterns];
+    let lastPatternEndId = prev?.endPatternId;
     if (lastPatternEndId === undefined) {
-      lastPatternEndId = myRandInts(time, 1, allIds.length, seed + 50)[0];
+      lastPatternEndId = myRandInts(time, 1, patterns.length, seed + 50)[0].id;
     }
-    const filteredIds = allIds.filter(id => id !== lastPatternEndId);
-    let shuffledIds = this.shuffleIds(filteredIds, time, seed + 53);
-
-    let priorityIds = this.shuffleIds(
-      window.getDjConfig().priorityPatterns.map((pat) => pat.id),
-      time, seed + 53,
+    if (prev !== undefined) {
+      patterns = patterns.filter((p) => prev.patterns.findIndex((pp) => p.id === pp.id) === -1);
+    }
+    patterns = patterns.filter((pattern) => pattern.id !== lastPatternEndId);
+    const patternBag = new PatternBag(
+      window.getDjConfig().priorityPatterns,
+      patterns,
+      prev?.patterns ?? [],
+      time,
+      seed + 53,
     );
-    if (nrPatterns === 1 && priorityIds.length > 0) {
-      return [priorityIds[0]];
-    }
-    const patternIds = Array(nrPatterns);
+    const patternIds = Array(progression.nrPatterns);
     if (transition) {
       patternIds[0] = lastPatternEndId;
     }
-    shuffledIds = [...priorityIds, ...shuffledIds];
-    // console.log('[DjState] shuffled ids', shuffledIds);
-    for (let i = nrPatterns - 1; i >= transition ? 1 : 0; i--) {
-      if (!shuffledIds.length) {
-        shuffledIds = this.shuffleIds(filteredIds, time, seed + 52 + i);
-      }
-      patternIds[i] = shuffledIds.shift();
+    for (let i = progression.nrPatterns - 1; i >= transition ? 1 : 0; i--) {
+      patternIds[i] = patternBag.getNext(progression.categories[i]).id;
     }
     return patternIds;
   }
@@ -631,9 +683,9 @@ class DjState {
       progression = progressions[myRandInts(time, 1, progressions.length, seed + 101)[0]];
     }
     const patternIds = this.pickNewPatterns(
+      progression,
       time,
-      progression.nrPatterns,
-      prev?.endPatternId,
+      prev,
       prev === undefined ? false : (prev.progression.isTransition || progression.isTransition),
       seed
     );
@@ -649,10 +701,11 @@ class DjState {
 }
 
 class DjPattern {
-  constructor(id, patFunc, priority = false) {
+  constructor(id, patFunc, priority = false, category = undefined) {
     this.id = id;
     this.patFunc = patFunc;
     this.priority = priority;
+    this.category = category;
   }
 }
 
@@ -707,7 +760,9 @@ function initDj(priority, args) {
   window.__djConfig = new DjConfig();
   window.__djConfig.failed = false;
   window.getDjConfig().defaultProgression = new Progression(
-    -1, false, duration, addBuiltinControls(defaultProgression), priority
+    -1, false, duration,
+    { parameters: addBuiltinControls(defaultProgression), category: undefined },
+    priority
   );
   const isStarted = getIsStarted();
 
@@ -790,7 +845,11 @@ function getNextColor() {
   return result;
 }
 
-window.djPattern = function(patFunc, priority = false) {
+window._djPattern = function(priority, category, patFunc) {
+  if (patFunc === undefined) {
+    patFunc = category;
+    category = undefined;
+  }
   const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
   const result = TryDjFail(() => patFunc(defaultProgression));
   if (!isPattern(result)) {
@@ -798,32 +857,65 @@ window.djPattern = function(patFunc, priority = false) {
   }
   const color = getNextColor();
   const coloredFunc = (p) => patFunc(p).color(color);
-  window.getDjConfig().patterns.push(new DjPattern(window.getDjConfig().patterns.length, coloredFunc, priority));
+  window.getDjConfig().patterns.push(new DjPattern(window.getDjConfig().patterns.length, coloredFunc, priority, category));
 }
-window.SdjPattern = function(patFunc) {
-  window.djPattern(patFunc, true);
+window.djPattern = function(category, patFunc) {
+  window._djPattern(false, category, patFunc);
+}
+window.SdjPattern = function(category, atFunc) {
+  window._djPattern(true, category, patFunc);
 }
 window.djpattern = window.djPattern;
 window.sdjPattern = window.SdjPattern;
 window.sdjpattern = window.SdjPattern;
 
 function checkAgainstDefault(parameters) {
-  const defaultProgression = window.getDjConfig().defaultProgression.parameters[0];
-  for (const configPattern of parameters) {
-    for (const [key, value] of Object.entries(configPattern)) {
-      if (!(key in defaultProgression)) {
+  const defaultParameters = window.getDjConfig().defaultProgression.parameters[0];
+  for (const parameter of parameters) {
+    for (const [key, value] of Object.entries(parameter.parameters)) {
+      if (!(key in defaultParameters)) {
         DjFail('Unknown control parameter `' + key + '`. Did you forget to add it to the dj?');
       }
     }
   }
 }
 
-window._djPlaythrough = function(priority, length, parameters) {
+function parseProgressionParameters(parameters) {
   if (!Array.isArray(parameters)) {
     parameters = [parameters];
   }
+  const parsed = [];
+  while (parameters.length) {
+    const a = parameters.shift();
+    if (typeof a === 'string') {
+      if (!parameters.length) {
+        DjFail('Trailing category name: ' + a);
+      }
+      const b = parameters.shift();
+      if (typeof b !== 'object') {
+        DjFail('Expected a parameters object, got: ' + typeof b);
+      }
+      parsed.push({
+        category: a,
+        parameters: b,
+      });
+    } else {
+      if (typeof a !== 'object') {
+        DjFail('Expected a parameters object, got: ' + typeof a);
+      }
+      parsed.push({
+        category: undefined,
+        parameters: a,
+      });
+    }
+  }
+  return parsed;
+}
+
+window._djPlaythrough = function(priority, length, parameters) {
+  parameters = parseProgressionParameters(parameters);
   if (parameters.length < 1) {
-    DjFail('Playthrough must have at least 1 config pattern');
+    DjFail('Playthrough must have at least 1 parameter config');
   }
   checkAgainstDefault(parameters);
   window.getDjConfig().progressions.push(
@@ -843,9 +935,7 @@ window.sdjPlaythrough = window.SdjPlaythrough;
 window.sdjplaythrough = window.SdjPlaythrough;
 
 window._djTransition = function(priority, length, parameters) {
-  if (!Array.isArray(parameters)) {
-    parameters = [parameters];
-  }
+  parameters = parseProgressionParameters(parameters);
   if (parameters.length < 2) {
     DjFail('Transition must have at least 2 config patterns');
   }
@@ -898,7 +988,7 @@ window.smooth = register('smooth', (pat) => {
       // sort by onsets
       .sort((a, b) => a.whole.begin.compare(b.whole.begin))
       // Make onsets unique
-      .filter((x, i, arr) => i == (arr.length - 1) || x.whole.begin.ne(arr[i + 1].whole.begin));
+      .filter((x, i, arr) => i === (arr.length - 1) || x.whole.begin.ne(arr[i + 1].whole.begin));
     const newHaps = [];
 
     for (const hap of haps) {
