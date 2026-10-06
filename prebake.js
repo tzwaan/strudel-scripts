@@ -194,6 +194,61 @@ window.rrun = (start, end, step = 1) => {
     return saw.range(start, end).segment(wholeSteps.div(step))
 }
 
+const _parseNote = (v) => {
+  if (typeof v === 'string') {
+    let sharps = v.split('#').length - 1;
+    let flats = v.split('b').length - 1;
+    let n = parseFloat(v);
+    return [n, sharps, flats];
+  } else {
+    return [v, 0, 0]; // v is a number
+  }
+}
+
+const _addeg = (amount, old, calc) => {
+  const isObject = typeof old === 'object';
+  const hasN = isObject && old.n !== undefined;
+
+  let value = isObject ? (hasN ? old.n : old.value) : old;
+  if (Array.isArray(value)) {
+    return silence; // arrays not supported
+  }
+
+  let [n, sharps, flats] = calc(_parseNote(value), _parseNote(amount));
+
+  const cancel = sharps > flats ? flats : sharps;
+  sharps -= cancel;
+  flats -= cancel;
+  value = `${n}${'#'.repeat(sharps)}${'b'.repeat(flats)}`;
+  return isObject ? (hasN ? { ...old, n: value } : { ...old, value }) : value;
+}
+
+const addeg = register('addeg', (amount, pat) => pat.withValue(old => {
+  return _addeg(amount, old, ([nA, sharpsA, flatsA], [nB, sharpsB, flatsB]) => {
+    const n = nA + nB;
+    const sharps = sharpsA + sharpsB;
+    const flats = flatsA + flatsB;
+    return [n, sharps, flats];
+  });
+}));
+
+const subdeg = register('subdeg', (amount, pat) => pat.withValue(old => {
+  return _addeg(amount, old, ([nA, sharpsA, flatsA], [nB, sharpsB, flatsB]) => {
+    const n = nA - nB;
+    let sharps = sharpsA - sharpsB;
+    let flats = flatsA - flatsB;
+    if (sharps < 0) {
+      flats -= sharps;
+      sharps = 0;
+    }
+    if (flats < 0) {
+      sharps -= flats;
+      flats = 0;
+    }
+    return [n, sharps, flats];
+  });
+}));
+
 
 // fade in a pattern over the given number of cycles repeatedly
 register('fadeOut', (nrCycles, pat) => {
