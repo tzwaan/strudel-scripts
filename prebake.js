@@ -601,13 +601,19 @@ window.automate = register('automate', pat => {
 
 function __smoothHap(time, hapA, hapB) {
   let a = hapA.value;
-  let b = Array.isArray(hapB.value) ? hapB.value[0] : hapB.value;
+  let b = hapB === undefined
+    ? Array.isArray(hapA.value) ? hapA.value[1] : hapA.value
+    : Array.isArray(hapB.value) ? hapB.value[0] : hapB.value;
   let context = hapA.context;
   if (Array.isArray(hapA.value)) {
     a = hapA.value[0];
     b = hapA.value[1];
   } else {
-    context = hapA.combineContext(hapB);
+    if (hapB === undefined) {
+      context = hapA.context;
+    } else {
+      context = hapA.combineContext(hapB);
+    }
   }
   const progress = time.sub(hapA.whole.begin)
     .div(hapA.whole.end.sub(hapA.whole.begin));
@@ -643,12 +649,6 @@ window.smooth = register('smooth', (pat) => {
 
       // Find the next onset
       const next = onsetHaps.find((onsetHap) => onsetHap.whole.begin.gte(hap.whole.end));
-      // If there is no next onset, the query window is not large enough.
-      // For now we bail out to avoid a crash.
-      // TODO: Handle this better
-      if (next === undefined) {
-        continue;
-      }
       // -- We don't need this, because we don't query into the past.
       // Ignore if the part ended before the original query, and hasn't expanded inside
       // if (next.whole.begin.lte(state.span.begin)) {
